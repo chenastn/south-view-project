@@ -1,18 +1,25 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { listSubmissions } from '../data/store'
-import { EVENTS, eventName } from '../data/events'
+import { listApproved } from '../data/store'
+import { useEvents } from '../events'
 import { Photo, WixNote, formatDate } from '../components'
 
 const photoDate = (p) => (p.sample ? 'Photo from southviewpreservation.com' : formatDate(p.submittedAt))
 
 export default function Gallery() {
+  const { events, eventName } = useEvents()
   const [photos, setPhotos] = useState([])
+  const [loading, setLoading] = useState('loading')
   const [filter, setFilter] = useState('all')
   const [open, setOpen] = useState(null)
 
   useEffect(() => {
-    listSubmissions().then((all) => setPhotos(all.filter((p) => p.status === 'approved')))
+    listApproved()
+      .then((approved) => {
+        setPhotos(approved)
+        setLoading('done')
+      })
+      .catch(() => setLoading('error'))
   }, [])
 
   useEffect(() => {
@@ -22,8 +29,10 @@ export default function Gallery() {
     return () => window.removeEventListener('keydown', onKey)
   }, [open])
 
+  const countFor = (id) => photos.filter((p) => p.event === id).length
+  // Current events, plus deleted ones that still have photos in the gallery.
+  const filters = events.filter((e) => e.active || countFor(e.id) > 0)
   const shown = filter === 'all' ? photos : photos.filter((p) => p.event === filter)
-  const countFor = (slug) => photos.filter((p) => p.event === slug).length
 
   return (
     <>
@@ -40,19 +49,19 @@ export default function Gallery() {
           <button className={filter === 'all' ? 'chip active' : 'chip'} onClick={() => setFilter('all')}>
             All events <span>{photos.length}</span>
           </button>
-          {EVENTS.map((e) => (
-            <button
-              key={e.slug}
-              className={filter === e.slug ? 'chip active' : 'chip'}
-              onClick={() => setFilter(e.slug)}
-            >
-              {e.name} <span>{countFor(e.slug)}</span>
+          {filters.map((e) => (
+            <button key={e.id} className={filter === e.id ? 'chip active' : 'chip'} onClick={() => setFilter(e.id)}>
+              {e.name} <span>{countFor(e.id)}</span>
             </button>
           ))}
         </div>
 
-        {shown.length === 0 ? (
-          <p className="empty">No approved photos for this event yet.</p>
+        {loading === 'loading' ? (
+          <p className="empty">Loading photos…</p>
+        ) : loading === 'error' ? (
+          <p className="empty error">The gallery couldn't load. Check your connection and refresh the page.</p>
+        ) : shown.length === 0 ? (
+          <p className="empty">{filter === 'all' ? 'No approved photos yet.' : 'No approved photos for this event yet.'}</p>
         ) : (
           <div className="grid">
             {shown.map((p) => (

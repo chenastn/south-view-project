@@ -1,10 +1,19 @@
 import { useCallback, useEffect, useState } from 'react'
-import { listSubmissions, resetDemo, setStatus } from '../data/store'
-import { eventName } from '../data/events'
+import {
+  addEvent,
+  deleteEvent,
+  isDemo,
+  isStaffUnlocked,
+  listAll,
+  listEvents,
+  lockStaff,
+  resetDemo,
+  setStatus,
+  unlockStaff,
+} from '../data/store'
+import { MAX_EVENT_NAME_LENGTH, cleanEventName } from '../data/events'
+import { useEvents } from '../events'
 import { AiCheckPanel, Photo, WixNote, formatDate } from '../components'
-
-const DEMO_PIN = '1886'
-const UNLOCK_KEY = 'south-view-staff-unlocked'
 
 const TABS = [
   { status: 'pending', label: 'Pending review' },
@@ -13,24 +22,31 @@ const TABS = [
 ]
 
 export default function Staff() {
-  const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem(UNLOCK_KEY) === 'yes')
+  const [unlocked, setUnlocked] = useState(isStaffUnlocked)
+  const lock = useCallback(() => {
+    lockStaff()
+    setUnlocked(false)
+  }, [])
   if (!unlocked) return <PinGate onUnlock={() => setUnlocked(true)} />
-  return <ReviewQueue />
+  return <ReviewQueue onLocked={lock} />
 }
 
 function PinGate({ onUnlock }) {
   const [pin, setPin] = useState('')
-  const [wrong, setWrong] = useState(false)
+  const [message, setMessage] = useState(null)
+  const [checking, setChecking] = useState(false)
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
-    if (pin === DEMO_PIN) {
-      sessionStorage.setItem(UNLOCK_KEY, 'yes')
-      onUnlock()
-    } else {
-      setWrong(true)
-      setPin('')
+    setChecking(true)
+    try {
+      if (await unlockStaff(pin)) return onUnlock()
+      setMessage(isDemo ? "That PIN didn't match." : "That password didn't match.")
+    } catch (err) {
+      setMessage(err.code ? err.message : "Couldn't reach the server. Check your connection and try again.")
     }
+    setPin('')
+    setChecking(false)
   }
 
   return (
@@ -40,37 +56,51 @@ function PinGate({ onUnlock }) {
       <form className="pin-form" onSubmit={handleSubmit}>
         <input
           type="password"
-          inputMode="numeric"
+          inputMode={isDemo ? 'numeric' : undefined}
           autoComplete="off"
-          placeholder="Staff PIN"
+          placeholder={isDemo ? 'Staff PIN' : 'Staff password'}
           value={pin}
           onChange={(e) => {
             setPin(e.target.value)
-            setWrong(false)
+            setMessage(null)
           }}
           autoFocus
         />
-        <button className="button" type="submit">Enter</button>
+        <button className="button" type="submit" disabled={checking}>
+          {checking ? 'Checking…' : 'Enter'}
+        </button>
       </form>
-      {wrong && <p className="error">That PIN didn't match.</p>}
-      <p className="hint">Demo PIN: 1886, the year South-View was founded. Not real security.</p>
+      {message && <p className="error">{message}</p>}
+      {isDemo && <p className="hint">Demo PIN: 1886, the year South-View was founded. Not real security.</p>}
     </section>
   )
 }
 
-function ReviewQueue() {
+function ReviewQueue({ onLocked }) {
   const [items, setItems] = useState([])
   const [tab, setTab] = useState('pending')
+  const [error, setError] = useState(null)
   const [confirmReset, setConfirmReset] = useState(false)
 
-  const refresh = useCallback(() => listSubmissions().then(setItems), [])
+  const { eventName, activeEvents, setEvents } = useEvents()
+  const handleError = useCallback(
+    (err) => (err.code === 'bad_password' ? onLocked() : setError(err.message || 'Something went wrong.')),
+    [onLocked],
+  )
+
+  const refresh = useCallback(() => listAll().then(setItems).catch(handleError), [handleError])
   useEffect(() => {
     refresh()
   }, [refresh])
 
   async function move(id, status) {
-    await setStatus(id, status)
-    refresh()
+    setError(null)
+    try {
+      await setStatus(id, status)
+      setItems((all) => all.map((i) => (i.id === id ? { ...i, status } : i)))
+    } catch (err) {
+      handleError(err)
+    }
   }
 
   async function handleReset() {
@@ -79,6 +109,7 @@ function ReviewQueue() {
     setConfirmReset(false)
     setTab('pending')
     refresh()
+    setEvents(await listEvents())
   }
 
   const shown = items.filter((i) => i.status === tab)
@@ -87,9 +118,11 @@ function ReviewQueue() {
     <section className="section">
       <div className="staff-head">
         <h1>Staff Review</h1>
-        <button className={confirmReset ? 'button button-danger' : 'button button-outline'} onClick={handleReset}>
-          {confirmReset ? 'Click again to reset' : 'Reset demo data'}
-        </button>
+        {isDemo && (
+          <button className={confirmReset ? 'button button-danger' : 'button button-outline'} onClick={handleReset}>
+            {confirmReset ? 'Click again to reset' : 'Reset demo data'}
+          </button>
+        )}
       </div>
 
       <div className="tabs">
@@ -98,9 +131,14 @@ function ReviewQueue() {
             {t.label} <span>{items.filter((i) => i.status === t.status).length}</span>
           </button>
         ))}
+        <button className={tab === 'events' ? 'tab active' : 'tab'} onClick={() => setTab('events')}>
+          Events <span>{activeEvents.length}</span>
+        </button>
       </div>
 
-      {shown.length === 0 && <p className="empty">Nothing here right now.</p>}
+      {error && <p className="error">{error}</p>}
+      {tab === 'events' && <EventManager items={items} onError={handleError} />}
+      {tab !== 'events' && shown.length === 0 && <p className="empty">Nothing here right now.</p>}
 
       <div className="review-list">
         {shown.map((item) => (
@@ -137,5 +175,90 @@ function ReviewQueue() {
         approving a photo just switches its approval field to true.
       </WixNote>
     </section>
+  )
+}
+
+// The events visitors can pick on the photo form and QR sign.
+function EventManager({ items, onError }) {
+  const { activeEvents, status, setEvents } = useEvents()
+  const [name, setName] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState(null)
+  const [confirmId, setConfirmId] = useState(null)
+
+  async function run(change) {
+    setBusy(true)
+    setMessage(null)
+    try {
+      setEvents(await change())
+      return true
+    } catch (err) {
+      if (err.code === 'bad_password') onError(err)
+      else setMessage(err.message || 'Something went wrong.')
+      return false
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleAdd(e) {
+    e.preventDefault()
+    if (await run(() => addEvent(name))) setName('')
+  }
+
+  async function handleDelete(id) {
+    if (confirmId !== id) return setConfirmId(id)
+    setConfirmId(null)
+    await run(() => deleteEvent(id))
+  }
+
+  const photoCount = (id) => {
+    const n = items.filter((i) => i.event === id).length
+    return `${n} ${n === 1 ? 'photo' : 'photos'}`
+  }
+
+  return (
+    <div className="events-manager">
+      <p className="lead">These are the events visitors can choose on the photo form and the QR sign.</p>
+      {status === 'loading' && <p className="empty">Loading events…</p>}
+      {status === 'error' && <p className="error">The event list couldn't load. Refresh the page to try again.</p>}
+      {status === 'done' && (
+        <ul className="event-list">
+          {activeEvents.map((e) => (
+            <li key={e.id}>
+              <div>
+                <strong>{e.name}</strong>
+                <span>{photoCount(e.id)}</span>
+              </div>
+              <button
+                className={confirmId === e.id ? 'button button-danger' : 'button button-outline'}
+                disabled={busy}
+                onClick={() => handleDelete(e.id)}
+              >
+                {confirmId === e.id ? 'Click again to delete' : 'Delete'}
+              </button>
+            </li>
+          ))}
+          {activeEvents.length === 0 && <li className="empty">No events yet.</li>}
+        </ul>
+      )}
+      <form className="event-form" onSubmit={handleAdd}>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="New event name"
+          aria-label="New event name"
+          maxLength={MAX_EVENT_NAME_LENGTH}
+        />
+        <button className="button" type="submit" disabled={busy || !cleanEventName(name)}>
+          {busy ? 'Saving…' : 'Add event'}
+        </button>
+      </form>
+      {message && <p className="error">{message}</p>}
+      <p className="hint">
+        Deleting an event takes it off the photo form and QR sign. Photos already shared from it keep the event's name,
+        and adding an event with the same name brings it back.
+      </p>
+    </div>
   )
 }

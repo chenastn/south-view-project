@@ -310,3 +310,14 @@ select, textarea, input[type='file'], .pin-form input {
   .section { padding: 0; }
   .sign { border-width: 3px; margin-top: 0.5in; }
 }
+
+.form .error { color: var(--rose-dark); }
+
+/* Staff event manager */
+.events-manager { max-width: 720px; }
+.event-list { list-style: none; margin: 16px 0 20px; padding: 0; border-top: 1px solid var(--line); }
+.event-list li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.event-list li span { color: #6b6b6b; font-size: 0.9rem; margin-left: 10px; }
+.event-list li .button { padding: 8px 14px; flex-shrink: 0; }
+.event-form { display: flex; flex-wrap: wrap; gap: 8px; }
+.event-form input { font: 400 1rem var(--sans); padding: 10px 12px; border: 1px solid #cfc7c7; border-radius: 6px; min-width: 0; flex: 1 1 260px; }
