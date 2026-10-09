@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { EVENTS, eventName } from '../data/events'
+import { useEvents } from '../events'
 import { addSubmission } from '../data/store'
 import { checkSubmission } from '../moderation'
 import { resizeImage } from '../utils/resizeImage'
@@ -8,14 +8,15 @@ import { WixNote } from '../components'
 
 export default function Submit() {
   const [params] = useSearchParams()
-  const presetEvent = EVENTS.some((e) => e.slug === params.get('event')) ? params.get('event') : ''
+  const { activeEvents, eventName, status: eventsStatus } = useEvents()
 
-  const [event, setEvent] = useState(presetEvent)
+  const [event, setEvent] = useState(params.get('event') ?? '')
   const [file, setFile] = useState(null)
   const [preview, setPreview] = useState(null)
   const [caption, setCaption] = useState('')
   const [consent, setConsent] = useState(false)
   const [state, setState] = useState('idle')
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     if (!file) {
@@ -27,28 +28,37 @@ export default function Submit() {
     return () => URL.revokeObjectURL(url)
   }, [file])
 
-  const ready = event && file && consent && state === 'idle'
+  // The event from the QR code (or the visitor's pick) counts once it's on the loaded list.
+  const chosenEvent = activeEvents.some((e) => e.id === event) ? event : ''
+  const ready = chosenEvent && file && consent && (state === 'idle' || state === 'error')
 
   async function handleSubmit(e) {
     e.preventDefault()
     if (!ready) return
     setState('checking')
-    const image = await resizeImage(file).catch(() => file)
-    const aiCheck = await checkSubmission({ caption, fileName: file.name })
-    await addSubmission({
-      id: crypto.randomUUID(),
-      event,
-      caption: caption.trim(),
-      consent,
-      status: 'pending',
-      submittedAt: new Date().toISOString(),
-      image,
-      imageSrc: null,
-      fileName: file.name,
-      sample: false,
-      aiCheck,
-    })
-    setState('done')
+    try {
+      const image = (await resizeImage(file).catch(() => null)) ?? file
+      const aiCheck = await checkSubmission({ caption, fileName: file.name })
+      await addSubmission({
+        id: crypto.randomUUID(),
+        event: chosenEvent,
+        caption: caption.trim(),
+        labels: [],
+        consent,
+        status: 'pending',
+        submittedAt: new Date().toISOString(),
+        image,
+        imageSrc: null,
+        fileName: file.name,
+        sample: false,
+        aiCheck,
+      })
+      setState('done')
+    } catch (err) {
+      // Messages from the script (like a deleted event) are worth showing; network errors aren't.
+      setError(err.code ? err.message : null)
+      setState('error')
+    }
   }
 
   function reset() {
@@ -85,12 +95,16 @@ export default function Submit() {
       <form className="form" onSubmit={handleSubmit}>
         <label>
           <span>Which event?</span>
-          <select value={event} onChange={(e) => setEvent(e.target.value)} required>
-            <option value="" disabled>Choose an event</option>
-            {EVENTS.map((e) => (
-              <option key={e.slug} value={e.slug}>{e.name}</option>
+          <select value={chosenEvent} onChange={(e) => setEvent(e.target.value)} required disabled={eventsStatus !== 'done'}>
+            <option value="" disabled>{eventsStatus === 'loading' ? 'Loading events…' : 'Choose an event'}</option>
+            {activeEvents.map((e) => (
+              <option key={e.id} value={e.id}>{e.name}</option>
             ))}
           </select>
+          {eventsStatus === 'error' && (
+            <small className="error">The event list couldn't load. Check your connection and refresh the page.</small>
+          )}
+          {eventsStatus === 'done' && activeEvents.length === 0 && <small>No events are taking photos right now.</small>}
         </label>
 
         <label>
@@ -119,8 +133,11 @@ export default function Submit() {
           </span>
         </label>
 
+        {state === 'error' && (
+          <p className="error">{error ?? "Your photo didn't send. Check your connection and try again."}</p>
+        )}
         <button className="button" type="submit" disabled={!ready}>
-          {state === 'checking' ? 'Sending…' : 'Send for review'}
+          {state === 'checking' ? 'Sending…' : state === 'error' ? 'Try again' : 'Send for review'}
         </button>
       </form>
 

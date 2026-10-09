@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import QRCode from 'qrcode'
-import { EVENTS, eventName } from '../data/events'
+import { useEvents } from '../events'
 import { WixNote } from '../components'
 
 const submitUrl = (slug) =>
@@ -9,12 +9,29 @@ const submitUrl = (slug) =>
 
 export default function QrSign() {
   const [params, setParams] = useSearchParams()
-  const slug = EVENTS.some((e) => e.slug === params.get('event')) ? params.get('event') : EVENTS[0].slug
+  const { activeEvents, eventName, status } = useEvents()
+  const slug = activeEvents.some((e) => e.id === params.get('event')) ? params.get('event') : activeEvents[0]?.id
   const [qr, setQr] = useState(null)
 
   useEffect(() => {
+    if (!slug) return
     QRCode.toDataURL(submitUrl(slug), { width: 480, margin: 1, color: { dark: '#1A1D1A' } }).then(setQr)
   }, [slug])
+
+  if (!slug) {
+    return (
+      <section className="section narrow center">
+        <h1>QR Sign</h1>
+        <p className={status === 'error' ? 'lead error' : 'lead'}>
+          {status === 'loading'
+            ? 'Loading events…'
+            : status === 'error'
+              ? "The event list couldn't load. Check your connection and refresh the page."
+              : 'There are no events yet. Add one on the Staff page under Events.'}
+        </p>
+      </section>
+    )
+  }
 
   return (
     <section className="section">
@@ -24,8 +41,8 @@ export default function QrSign() {
         <label>
           <span>Event</span>
           <select value={slug} onChange={(e) => setParams({ event: e.target.value })}>
-            {EVENTS.map((e) => (
-              <option key={e.slug} value={e.slug}>{e.name}</option>
+            {activeEvents.map((e) => (
+              <option key={e.id} value={e.id}>{e.name}</option>
             ))}
           </select>
         </label>

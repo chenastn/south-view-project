@@ -4,6 +4,8 @@ import Gallery from './pages/Gallery'
 import Submit from './pages/Submit'
 import Staff from './pages/Staff'
 import QrSign from './pages/QrSign'
+import { isDemo } from './data/store'
+import { EventsProvider } from './events'
 
 export default function App() {
   const { pathname } = useLocation()
@@ -12,7 +14,7 @@ export default function App() {
   }, [pathname])
 
   return (
-    <>
+    <EventsProvider>
       <div className="prototype-banner">
         Student prototype for the Historic South-View Preservation Foundation · LMC 3403 · Not the official site
       </div>
@@ -39,9 +41,10 @@ export default function App() {
         </Routes>
       </main>
       <footer className="site-footer">
-        Sample photos are from southviewpreservation.com, used for a class prototype. New submissions are
-        stored only in this browser.
+        {isDemo
+          ? 'Sample photos are from southviewpreservation.com, used for a class prototype. New submissions are stored only in this browser.'
+          : 'Photos are shared by visitors and reviewed by South-View staff before they appear here.'}
       </footer>
-    </>
+    </EventsProvider>
   )
 }

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { eventName } from './data/events'
+import { useEvents } from './events'
 
 export function Photo({ record, ...props }) {
+  const { eventName } = useEvents()
   const [url, setUrl] = useState(record.image ? null : record.imageSrc)
 
   useEffect(() => {
@@ -14,8 +15,19 @@ export function Photo({ record, ...props }) {
     return () => URL.revokeObjectURL(objectUrl)
   }, [record.image, record.imageSrc])
 
+  // Drive photos have a second URL format to try if the first one is blocked.
+  const onError = () => record.imageFallback && url !== record.imageFallback && setUrl(record.imageFallback)
+
   if (!url) return <div className="photo-loading" />
-  return <img src={url} alt={record.caption || `Photo from ${eventName(record.event)}`} {...props} />
+  return (
+    <img
+      src={url}
+      alt={record.caption || `Photo from ${eventName(record.event)}`}
+      referrerPolicy="no-referrer"
+      onError={onError}
+      {...props}
+    />
+  )
 }
 
 export function WixNote({ children }) {
@@ -27,6 +39,7 @@ export function WixNote({ children }) {
 }
 
 export function AiCheckPanel({ check }) {
+  if (!check) return null
   return (
     <div className={`ai-check ${check.flagged ? 'is-flagged' : 'is-clear'}`}>
       <div className="ai-check-head">
