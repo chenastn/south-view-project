@@ -64,11 +64,6 @@ export async function setStatus(id, status) {
   await post({ action: 'setStatus', id, status, password: sessionStorage.getItem(PASSWORD_KEY) })
 }
 
-export async function setLabels(id, labels) {
-  const { labels: saved } = await post({ action: 'updateMetadata', id, labels, password: sessionStorage.getItem(PASSWORD_KEY) })
-  return saved
-}
-
 export async function listEvents() {
   const { events } = await fetch(`${API_URL}?action=events`).then(parse)
   return events

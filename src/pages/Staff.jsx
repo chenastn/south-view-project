@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   addEvent,
   deleteEvent,
@@ -8,16 +8,12 @@ import {
   listEvents,
   lockStaff,
   resetDemo,
-  setLabels,
   setStatus,
   unlockStaff,
 } from '../data/store'
 import { MAX_EVENT_NAME_LENGTH, cleanEventName } from '../data/events'
 import { useEvents } from '../events'
 import { AiCheckPanel, Photo, WixNote, formatDate } from '../components'
-
-const MAX_LABELS = 20
-const MAX_LABEL_LENGTH = 40
 
 const TABS = [
   { status: 'pending', label: 'Pending review' },
@@ -107,16 +103,6 @@ function ReviewQueue({ onLocked }) {
     }
   }
 
-  // A failed label save reloads the list so the page shows what's really saved.
-  const handleLabelError = (err) => {
-    handleError(err)
-    if (err.code !== 'bad_password') refresh()
-  }
-  const updateLabels = (id, labels) => setItems((all) => all.map((i) => (i.id === id ? { ...i, labels } : i)))
-  const allLabels = [...new Map(items.flatMap((i) => i.labels ?? []).map((l) => [l.toLowerCase(), l])).values()].sort(
-    (a, b) => a.localeCompare(b),
-  )
-
   async function handleReset() {
     if (!confirmReset) return setConfirmReset(true)
     await resetDemo()
@@ -152,11 +138,6 @@ function ReviewQueue({ onLocked }) {
 
       {error && <p className="error">{error}</p>}
       {tab === 'events' && <EventManager items={items} onError={handleError} />}
-      <datalist id="label-suggestions">
-        {allLabels.map((l) => (
-          <option key={l} value={l} />
-        ))}
-      </datalist>
       {tab !== 'events' && shown.length === 0 && <p className="empty">Nothing here right now.</p>}
 
       <div className="review-list">
@@ -170,12 +151,6 @@ function ReviewQueue({ onLocked }) {
               </div>
               <p className="review-caption">{item.caption || <em>No caption</em>}</p>
               <p className="review-consent">{item.consent ? '✓ Contributor gave consent to publish' : 'No consent given'}</p>
-              <LabelEditor
-                item={item}
-                suggestions={allLabels}
-                onChange={(labels) => updateLabels(item.id, labels)}
-                onError={handleLabelError}
-              />
               <AiCheckPanel check={item.aiCheck} />
               <div className="actions">
                 {item.status !== 'approved' && (
@@ -200,70 +175,6 @@ function ReviewQueue({ onLocked }) {
         approving a photo just switches its approval field to true.
       </WixNote>
     </section>
-  )
-}
-
-// Labels save as soon as they change. Saves for one photo run in order, so a quick
-// add-then-remove can't land out of order.
-function LabelEditor({ item, suggestions, onChange, onError }) {
-  const labels = item.labels ?? []
-  const [draft, setDraft] = useState('')
-  const [saveState, setSaveState] = useState(null)
-  const queue = useRef(Promise.resolve())
-  const latest = useRef(0)
-
-  function save(next) {
-    onChange(next)
-    const n = ++latest.current
-    setSaveState('Saving…')
-    queue.current = queue.current
-      .then(() => setLabels(item.id, next))
-      .then(() => n === latest.current && setSaveState('Saved'))
-      .catch((err) => {
-        if (n === latest.current) setSaveState("Couldn't save")
-        onError(err)
-      })
-  }
-
-  function add(e) {
-    e.preventDefault()
-    const text = draft.replace(/,/g, ' ').replace(/\s+/g, ' ').trim().slice(0, MAX_LABEL_LENGTH)
-    setDraft('')
-    if (!text || labels.some((l) => l.toLowerCase() === text.toLowerCase())) return
-    // Reuse an existing label's spelling so the gallery filters stay consistent.
-    save([...labels, suggestions.find((s) => s.toLowerCase() === text.toLowerCase()) ?? text])
-  }
-
-  return (
-    <div className="labels">
-      <span className="labels-title">Labels</span>
-      <ul className="label-list">
-        {labels.map((label) => (
-          <li key={label} className="label-chip">
-            {label}
-            <button type="button" onClick={() => save(labels.filter((l) => l !== label))} aria-label={`Remove label ${label}`}>
-              ×
-            </button>
-          </li>
-        ))}
-        {labels.length === 0 && <li className="labels-empty">No labels yet</li>}
-      </ul>
-      <form className="label-form" onSubmit={add}>
-        <input
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          list="label-suggestions"
-          placeholder="Add a label"
-          aria-label="Add a label"
-          maxLength={MAX_LABEL_LENGTH}
-          disabled={labels.length >= MAX_LABELS}
-        />
-        <button className="button button-outline" type="submit" disabled={!draft.trim()}>
-          Add
-        </button>
-        {saveState && <span className="label-status">{saveState}</span>}
-      </form>
-    </div>
   )
 }
 

@@ -10,7 +10,6 @@ export const {
   listAll,
   addSubmission,
   setStatus,
-  setLabels,
   listEvents,
   addEvent,
   deleteEvent,

@@ -8,7 +8,7 @@
 const SHEET_NAME = 'Submissions'
 const EVENTS_SHEET_NAME = 'Events'
 const FOLDER_NAME = 'South-View Gallery Photos'
-const HEADERS = ['ID', 'Submitted', 'Event', 'Caption', 'Labels', 'Status', 'Consent', 'AI flagged', 'AI notes', 'Photo', 'File name', 'File ID', 'AI check data']
+const HEADERS = ['ID', 'Submitted', 'Event', 'Caption', 'Status', 'Consent', 'AI flagged', 'AI notes', 'Photo', 'File name', 'File ID', 'AI check data']
 const REQUIRED_COLUMNS = ['ID', 'Status', 'File ID']
 const EVENT_HEADERS = ['ID', 'Name', 'Active']
 // The Events tab starts with these, so photos shared before it existed keep their names.
@@ -21,8 +21,6 @@ const DEFAULT_EVENTS = [
 const MAX_EVENT_NAME_LENGTH = 60
 const STATUSES = ['pending', 'approved', 'rejected']
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024
-const MAX_LABELS = 20
-const MAX_LABEL_LENGTH = 40
 const MAX_FAILED_LOGINS = 10
 const LOCKOUT_SECONDS = 15 * 60
 
@@ -90,7 +88,7 @@ function doGet(e) {
     if (action !== 'gallery') fail('Unknown action.')
     const photos = readRows()
       .filter((r) => r.status === 'approved' && r.fileId)
-      .map((r) => ({ id: r.id, event: r.event, caption: r.caption, labels: r.labels, submittedAt: r.submittedAt, fileId: r.fileId }))
+      .map((r) => ({ id: r.id, event: r.event, caption: r.caption, submittedAt: r.submittedAt, fileId: r.fileId }))
     return { photos }
   })
 }
@@ -104,7 +102,6 @@ function doPost(e) {
     checkStaffPassword(body.password)
     if (body.action === 'staffList') return { submissions: readRows().filter((r) => r.fileId) }
     if (body.action === 'setStatus') return setStatus(String(body.id), body.status)
-    if (body.action === 'updateMetadata') return updateMetadata(String(body.id), body.labels)
     if (body.action === 'addEvent') return addEvent(body.name)
     if (body.action === 'deleteEvent') return deleteEvent(String(body.id))
     fail('Unknown action.')
@@ -158,35 +155,6 @@ function setStatus(id, status) {
     sheet.getRange(rowNumber(header, values, id), header.indexOf('Status') + 1).setValue(status)
   })
   return {}
-}
-
-// Labels are stored as comma-separated text so staff can also edit them in the Sheet.
-function updateMetadata(id, labels) {
-  if (!Array.isArray(labels)) fail('Labels must be a list.')
-  const clean = cleanLabels(labels)
-  withLock(() => {
-    const { sheet, header, values } = readSheet()
-    let col = header.indexOf('Labels')
-    if (col < 0) {
-      col = header.length
-      sheet.getRange(1, col + 1).setValue('Labels')
-    }
-    sheet.getRange(rowNumber(header, values, id), col + 1).setValue(plainText(clean.join(', ')))
-  })
-  return { labels: clean }
-}
-
-// Trims labels, drops commas and duplicates (ignoring capitalisation), and caps their number.
-function cleanLabels(labels) {
-  const seen = {}
-  const clean = []
-  labels.forEach((label) => {
-    const text = String(label).replace(/,/g, ' ').replace(/\s+/g, ' ').trim().slice(0, MAX_LABEL_LENGTH)
-    if (!text || seen[text.toLowerCase()]) return
-    seen[text.toLowerCase()] = true
-    clean.push(text)
-  })
-  return clean.slice(0, MAX_LABELS)
 }
 
 function rowNumber(header, values, id) {
@@ -362,7 +330,6 @@ function readRows() {
     submittedAt: toIso(at(row, 'Submitted')),
     event: String(at(row, 'Event')).trim(),
     caption: String(at(row, 'Caption')),
-    labels: String(at(row, 'Labels')).split(',').map((l) => l.trim()).filter(Boolean),
     status: String(at(row, 'Status')).trim().toLowerCase() || 'pending',
     consent: at(row, 'Consent') === true,
     fileName: String(at(row, 'File name')),

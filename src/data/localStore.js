@@ -39,12 +39,6 @@ export async function setStatus(id, status) {
   if (record) await set(id, { ...record, status }, db)
 }
 
-export async function setLabels(id, labels) {
-  const record = await get(id, db)
-  if (record) await set(id, { ...record, labels }, db)
-  return labels
-}
-
 export async function listEvents() {
   return (await get(EVENTS_KEY, db)) ?? DEFAULT_EVENTS.map((e) => ({ ...e, active: true }))
 }

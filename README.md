@@ -77,11 +77,9 @@ account while the live site uses South-View's.
 - Staff can approve photos on the Staff page, or by changing the **Status** column in
   the Sheet to `pending`, `approved` or `rejected`. Deleting a row removes it from the
   gallery (the photo file stays in the Drive folder).
-- Staff can add labels to a photo on the Staff page, or type them into the **Labels**
-  column separated by commas (`Trees, Volunteers`). The gallery's filter buttons are
-  built from the labels on approved photos, so a new label becomes a new filter.
 - Staff add and delete events on the Staff page's **Events** tab. These are the events
-  visitors can pick on the photo form and the QR sign. They live in the Sheet's
+  visitors can pick on the photo form and the QR sign, and the gallery's filter
+  buttons. They live in the Sheet's
   **Events** tab, which `setup` creates with the original four events. Deleting an
   event unticks its **Active** box rather than removing the row, so photos already
   shared from it keep the event's name. Adding the same name again brings it back.
@@ -96,11 +94,10 @@ account while the live site uses South-View's.
   folder belongs to someone else, the photos still count against the deploying
   account's storage, unless the folder is in a shared drive.
 - If you change the script, paste in the new `Code.gs`, run `setup` again (it adds any
-  new columns, such as **Labels**, to the end of the Sheet, and the **Events** tab if
-  it's missing), then use **Deploy → Manage
-  deployments**, click the pencil, choose **Version: New version** and **Deploy**. Don't
-  make a *new* deployment: that creates a new URL and the website stops working until
-  it's updated.
+  new columns to the end of the Sheet, and the **Events** tab if it's missing), then use
+  **Deploy → Manage deployments**, click the pencil, choose **Version: New version** and
+  **Deploy**. Don't make a *new* deployment: that creates a new URL and the website
+  stops working until it's updated.
 - Photos are shared as "anyone with the link" so the gallery can show them, but the
   website only gives out links to approved photos.
 
@@ -153,14 +150,12 @@ the simulated version is instant and needs no model. When swapping in a real one
 2. Run it on the Staff page for pending photos, for example with a "Run AI check" button
    on each card or one for all pending photos.
 3. Save the result to the Sheet through a new staff action in `apps-script/Code.gs`
-   (next to `updateMetadata`) that fills the **AI flagged**, **AI notes** and
+   (next to `setStatus`) that fills the **AI flagged**, **AI notes** and
    **AI check data** columns.
 
 Keep the same result shape: `{ engine, flagged, rules: [{ label, result, reason }] }`.
 The rules in `src/moderation/simulated.js` follow the CLUE approach from Joey's
-research: split "is this appropriate?" into specific, checkable rules. If the model
-also suggests labels, do that in the same pass on the Staff page and save them with
-`updateMetadata`.
+research: split "is this appropriate?" into specific, checkable rules.
 
 ## Notes
 

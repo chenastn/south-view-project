@@ -43,7 +43,6 @@ export default function Submit() {
         id: crypto.randomUUID(),
         event: chosenEvent,
         caption: caption.trim(),
-        labels: [],
         consent,
         status: 'pending',
         submittedAt: new Date().toISOString(),

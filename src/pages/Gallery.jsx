@@ -5,22 +5,9 @@ import { useEvents } from '../events'
 import { Photo, WixNote, formatDate } from '../components'
 
 const photoDate = (p) => (p.sample ? 'Photo from southviewpreservation.com' : formatDate(p.submittedAt))
-const labelKey = (label) => label.toLowerCase()
-
-// One filter per label on the approved photos, most-used first. Labels that differ only
-// in capitalisation (easy to do when editing the Sheet) count as the same label.
-function labelFilters(photos) {
-  const byKey = new Map()
-  for (const label of photos.flatMap((p) => p.labels ?? [])) {
-    const entry = byKey.get(labelKey(label)) ?? { key: labelKey(label), name: label, count: 0 }
-    entry.count++
-    byKey.set(entry.key, entry)
-  }
-  return [...byKey.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
-}
 
 export default function Gallery() {
-  const { eventName } = useEvents()
+  const { events, eventName } = useEvents()
   const [photos, setPhotos] = useState([])
   const [loading, setLoading] = useState('loading')
   const [filter, setFilter] = useState('all')
@@ -42,27 +29,29 @@ export default function Gallery() {
     return () => window.removeEventListener('keydown', onKey)
   }, [open])
 
-  const filters = labelFilters(photos)
-  const shown = filter === 'all' ? photos : photos.filter((p) => (p.labels ?? []).some((l) => labelKey(l) === filter))
+  const countFor = (id) => photos.filter((p) => p.event === id).length
+  // Current events, plus deleted ones that still have photos in the gallery.
+  const filters = events.filter((e) => e.active || countFor(e.id) > 0)
+  const shown = filter === 'all' ? photos : photos.filter((p) => p.event === filter)
 
   return (
     <>
       <section className="hero" style={{ backgroundImage: `url(${import.meta.env.BASE_URL}seed/irises.jpg)` }}>
         <div className="hero-inner">
           <h1>Community Gallery</h1>
-          <p>Photos shared by the people who come to South-View.</p>
+          <p>Photos shared by the people who come to South-View, sorted by event.</p>
           <Link to="/submit" className="button button-light">Share Your Photo</Link>
         </div>
       </section>
 
       <section className="section">
-        <div className="chips" role="tablist" aria-label="Filter by label">
+        <div className="chips" role="tablist" aria-label="Filter by event">
           <button className={filter === 'all' ? 'chip active' : 'chip'} onClick={() => setFilter('all')}>
-            All photos <span>{photos.length}</span>
+            All events <span>{photos.length}</span>
           </button>
-          {filters.map((f) => (
-            <button key={f.key} className={filter === f.key ? 'chip active' : 'chip'} onClick={() => setFilter(f.key)}>
-              {f.name} <span>{f.count}</span>
+          {filters.map((e) => (
+            <button key={e.id} className={filter === e.id ? 'chip active' : 'chip'} onClick={() => setFilter(e.id)}>
+              {e.name} <span>{countFor(e.id)}</span>
             </button>
           ))}
         </div>
@@ -72,7 +61,7 @@ export default function Gallery() {
         ) : loading === 'error' ? (
           <p className="empty error">The gallery couldn't load. Check your connection and refresh the page.</p>
         ) : shown.length === 0 ? (
-          <p className="empty">{filter === 'all' ? 'No approved photos yet.' : 'No photos with this label yet.'}</p>
+          <p className="empty">{filter === 'all' ? 'No approved photos yet.' : 'No approved photos for this event yet.'}</p>
         ) : (
           <div className="grid">
             {shown.map((p) => (
@@ -93,7 +82,7 @@ export default function Gallery() {
 
         <WixNote>
           this grid is a Pro Gallery connected to the CMS Collection, filtered to rows where
-          the approval field is true and grouped by the labels field.
+          the approval field is true and grouped by the event field.
         </WixNote>
       </section>
 

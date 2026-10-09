@@ -311,18 +311,6 @@ select, textarea, input[type='file'], .pin-form input {
   .sign { border-width: 3px; margin-top: 0.5in; }
 }
 
-/* Staff label editor */
-.labels { margin: 0 0 14px; }
-.labels-title { display: block; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--brown); margin-bottom: 6px; }
-.label-list { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
-.label-chip { display: inline-flex; align-items: center; gap: 2px; background: var(--bg-soft); border: 1px solid var(--line); border-radius: 999px; padding: 2px 2px 2px 12px; font-size: 0.9rem; }
-.label-chip button { border: 0; background: none; cursor: pointer; font-size: 1.1rem; line-height: 1; padding: 4px 8px; color: #6b6b6b; border-radius: 999px; }
-.label-chip button:hover { color: var(--rose-dark); background: #fff; }
-.labels-empty { color: #8a8a8a; font-size: 0.9rem; }
-.label-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.label-form input { font: 400 0.95rem var(--sans); padding: 8px 10px; border: 1px solid #cfc7c7; border-radius: 6px; min-width: 0; flex: 0 1 220px; }
-.label-form .button { padding: 8px 14px; }
-.label-status { font-size: 0.85rem; color: #6b6b6b; }
 .form .error { color: var(--rose-dark); }
 
 /* Staff event manager */
