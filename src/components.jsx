@@ -38,13 +38,15 @@ export function WixNote({ children }) {
   )
 }
 
+const ENGINE_LABELS = { simulated: 'Simulated AI check', gemini: 'Gemini AI check' }
+
 export function AiCheckPanel({ check }) {
   if (!check) return null
   return (
     <div className={`ai-check ${check.flagged ? 'is-flagged' : 'is-clear'}`}>
       <div className="ai-check-head">
         <span>{check.flagged ? 'Flagged for a closer look' : 'No issues found'}</span>
-        <span className="tag">Simulated AI check</span>
+        <span className="tag">{ENGINE_LABELS[check.engine] ?? 'AI check'}</span>
       </div>
       <ul>
         {check.rules.map((rule) => (
