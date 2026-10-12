@@ -126,9 +126,7 @@ function submit(body) {
   const fileName = String(body.fileName || 'photo').slice(0, 120)
   const blob = Utilities.newBlob(Utilities.base64Decode(image), mimeType, id + ' ' + fileName)
   const file = photoFolder().createFile(blob)
-  // Link sharing lets the gallery show the photo. A file ID only reaches the public
-  // gallery once its row is approved, so pending and rejected photos stay unlisted.
-  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW)
+  shareByLink(file)
 
   const aiCheck = body.aiCheck && Array.isArray(body.aiCheck.rules) ? body.aiCheck : null
   const flagged = aiCheck ? aiCheck.rules.filter((r) => r.result === 'flag') : []
@@ -147,6 +145,16 @@ function submit(body) {
     'AI check data': aiCheck ? JSON.stringify(aiCheck).slice(0, 5000) : '',
   })
   return { id }
+}
+
+// Link sharing lets the gallery show the photo. A file ID only reaches the public
+// gallery once its row is approved, so pending and rejected photos stay unlisted.
+// A photo in a folder that's shared by link already is, and Drive won't let one file
+// change sharing it gets from its folder, so those are left alone.
+function shareByLink(file) {
+  const access = file.getSharingAccess()
+  if (access === DriveApp.Access.ANYONE || access === DriveApp.Access.ANYONE_WITH_LINK) return
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW)
 }
 
 function setStatus(id, status) {
