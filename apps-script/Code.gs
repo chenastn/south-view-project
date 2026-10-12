@@ -104,6 +104,7 @@ function doPost(e) {
     if (body.action === 'setStatus') return setStatus(String(body.id), body.status)
     if (body.action === 'addEvent') return addEvent(body.name)
     if (body.action === 'deleteEvent') return deleteEvent(String(body.id))
+    if (body.action === 'checkAI') {return { aiCheck: checkPhotoWithGemini(String(body.id)) };}
     fail('Unknown action.')
   })
 }
@@ -397,4 +398,157 @@ function fail(message, code) {
   const err = new Error(message)
   err.code = code
   throw err
+}
+
+function testGeminiConnection() {
+  const apiKey = PropertiesService
+    .getScriptProperties()
+    .getProperty('GEMINI_API_KEY');
+
+  if (!apiKey) {
+    throw new Error('GEMINI_API_KEY is missing');
+  }
+
+  const url =
+  'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent';
+
+  const payload = {
+    contents: [{
+      parts: [{
+        text: 'Reply with exactly: Gemini connection successful'
+      }]
+    }]
+  };
+
+  const response = UrlFetchApp.fetch(url, {
+    method: 'post',
+    contentType: 'application/json',
+    headers: {
+      'x-goog-api-key': apiKey
+    },
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  });
+
+  const status = response.getResponseCode();
+  const result = JSON.parse(response.getContentText());
+
+  if (status !== 200) {
+    throw new Error(
+      'Gemini API error ' + status + ': ' +
+      JSON.stringify(result.error || result)
+    );
+  }
+
+  const answer = result.candidates?.[0]?.content?.parts
+    ?.map(part => part.text || '')
+    .join('');
+
+  console.log('Gemini response: ' + answer);
+}
+
+function checkPhotoWithGemini(id) {
+  const { sheet, header, values } = readSheet();
+  const rowIndex = values.findIndex(
+    row => String(cell(header, row, 'ID')) === id
+  );
+
+  if (rowIndex === -1) fail('Photo not found.');
+
+  const row = values[rowIndex];
+  const fileId = String(cell(header, row, 'File ID'));
+  const caption = String(cell(header, row, 'Caption'));
+  const blob = DriveApp.getFileById(fileId).getBlob();
+
+  const response = UrlFetchApp.fetch(
+    'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent',
+    {
+      method: 'post',
+      contentType: 'application/json',
+      headers: {
+        'x-goog-api-key': props.getProperty('GEMINI_API_KEY')
+      },
+      payload: JSON.stringify({
+        contents: [{
+          parts: [
+            {
+              text: `Review this photo for a community cemetery gallery.
+Caption: ${caption}
+
+Flag inappropriate content, nudity, violence, offensive gestures,
+or disrespectful behavior toward graves or memorials.
+
+Return only JSON in this format:
+{
+  "flagged": false,
+  "reason": "Brief explanation"
+}`
+            },
+            {
+              inline_data: {
+                mime_type: blob.getContentType(),
+                data: Utilities.base64Encode(blob.getBytes())
+              }
+            }
+          ]
+        }],
+        generationConfig: {
+          responseMimeType: 'application/json'
+        }
+      }),
+      muteHttpExceptions: true
+    }
+  );
+
+  if (response.getResponseCode() !== 200) {
+    throw new Error(response.getContentText());
+  }
+
+  const result = JSON.parse(response.getContentText());
+  const raw = JSON.parse(
+    result.candidates[0].content.parts[0].text
+  );
+  // Same shape the Staff page's AiCheckPanel expects (flagged + rules[]).
+  const flagged = Boolean(raw.flagged);
+  const reason = String(raw.reason || '');
+  const aiCheck = {
+    engine: 'gemini',
+    flagged: flagged,
+    reason: reason,
+    rules: [{
+      label: 'Gemini review',
+      result: flagged ? 'flag' : 'pass',
+      reason: reason,
+    }],
+  };
+
+  const rowNumber = rowIndex + 2;
+
+  sheet.getRange(rowNumber, header.indexOf('AI flagged') + 1)
+    .setValue(aiCheck.flagged ? 'Yes' : 'No');
+
+  sheet.getRange(rowNumber, header.indexOf('AI notes') + 1)
+    .setValue(plainText(aiCheck.reason));
+
+  sheet.getRange(rowNumber, header.indexOf('AI check data') + 1)
+    .setValue(JSON.stringify(aiCheck));
+
+  return aiCheck;
+}
+
+function testGeminiPhoto() {
+  const { header, values } = readSheet();
+
+  const photo = values.find(
+    row => String(cell(header, row, 'File ID')).trim()
+  );
+
+  if (!photo) {
+    throw new Error('No uploaded photos found.');
+  }
+
+  const id = String(cell(header, photo, 'ID'));
+  const result = checkPhotoWithGemini(id);
+
+  console.log(JSON.stringify(result, null, 2));
 }
