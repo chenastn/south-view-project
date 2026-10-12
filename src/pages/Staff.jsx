@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   addEvent,
+  checkAI,
   deleteEvent,
   isDemo,
   isStaffUnlocked,
@@ -90,8 +91,37 @@ function ReviewQueue({ onLocked }) {
 
   const refresh = useCallback(() => listAll().then(setItems).catch(handleError), [handleError])
   useEffect(() => {
-    refresh()
-  }, [refresh])
+    let cancelled = false
+    ;(async () => {
+      try {
+        const list = await listAll()
+        if (cancelled) return
+        setItems(list)
+        if (isDemo) return
+        // Background Gemini checks for every pending photo (demo volume is small).
+        for (const item of list.filter((i) => i.status === 'pending' && i.fileId)) {
+          if (cancelled) return
+          try {
+            const aiCheck = await checkAI(item.id)
+            if (cancelled) return
+            if (!aiCheck) continue
+            setItems((all) => all.map((i) => (i.id === item.id ? { ...i, aiCheck } : i)))
+          } catch (err) {
+            if (err.code === 'bad_password') {
+              handleError(err)
+              return
+            }
+            if (!cancelled) setError(err.message || 'AI check failed.')
+          }
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [handleError])
 
   async function move(id, status) {
     setError(null)
