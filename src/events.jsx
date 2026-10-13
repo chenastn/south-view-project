@@ -3,7 +3,7 @@ import { listEvents } from './data/store'
 
 const EventsContext = createContext(null)
 
-// Loads the event list once for the whole site. Staff changes replace it via setEvents.
+// Loads the event and burial list once for the whole site. Staff changes replace it via setEvents.
 export function EventsProvider({ children }) {
   const [events, setEvents] = useState([])
   const [status, setStatus] = useState('loading')
@@ -29,16 +29,20 @@ export function EventsProvider({ children }) {
     }
   }, [])
 
-  const value = useMemo(
-    () => ({
-      events,
-      activeEvents: events.filter((e) => e.active),
+  const value = useMemo(() => {
+    // Rows from before burials existed have no type, and a burial's details are optional.
+    const all = events.map((e) => ({ ...e, type: e.type === 'burial' ? 'burial' : 'event', details: e.details ?? '' }))
+    const active = all.filter((e) => e.active)
+    return {
+      events: all,
+      activeEvents: active.filter((e) => e.type === 'event'),
+      activeBurials: active.filter((e) => e.type === 'burial'),
       status,
       setEvents,
-      eventName: (id) => events.find((e) => e.id === id)?.name ?? (status === 'loading' ? '' : 'Unknown event'),
-    }),
-    [events, status],
-  )
+      entry: (id) => all.find((e) => e.id === id),
+      eventName: (id) => all.find((e) => e.id === id)?.name ?? (status === 'loading' ? '' : 'Unknown event'),
+    }
+  }, [events, status])
 
   return <EventsContext.Provider value={value}>{children}</EventsContext.Provider>
 }

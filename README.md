@@ -4,11 +4,12 @@ A clickable prototype of the photo submission and gallery system our LMC 3403 te
 proposing for the Historic South-View Preservation Foundation. It walks through the
 same flow the final version will use inside South-View's Wix site:
 
-1. A visitor at an event scans a QR code and submits a photo with an optional caption
-   and a consent checkbox.
+1. A visitor at an event, or at a grave, scans a QR code and submits one or more photos
+   with an optional caption and a consent checkbox.
 2. An AI check flags anything questionable (**simulated** in this prototype).
 3. A South-View staff member approves or rejects each photo.
-4. Approved photos appear in a public gallery, sorted by event.
+4. Approved photos appear in a public gallery, sorted by event or burial, with a search
+   box.
 
 This is a stand-in for the pitch demo, not the final product. The real build uses Wix's
 own tools (see the mapping below).
@@ -83,6 +84,12 @@ account while the live site uses South-View's.
   **Events** tab, which `setup` creates with the original four events. Deleting an
   event unticks its **Active** box rather than removing the row, so photos already
   shared from it keep the event's name. Adding the same name again brings it back.
+- Burials live in the same **Events** tab, with **Type** set to `burial` and optional
+  **Details** (years, section or plot). Add them on the Staff page's **Burials** tab, or
+  paste many rows into the Sheet at once (Type `burial`, Name, Details; leave ID blank
+  and Active blank or ticked). A blank Type counts as an event. Each burial gets its own
+  QR code (Staff → Burials → **QR code**, or **Print all burial QR codes** for a sheet of
+  labels) and its own gallery link, `#/?event=<id>`.
 - Don't rename the **ID**, **Status** or **File ID** columns. Other columns can be
   reordered, and you can add your own. In the **Events** tab, don't change an event's
   **ID**: that's how photos stay linked to it.
@@ -94,7 +101,8 @@ account while the live site uses South-View's.
   folder belongs to someone else, the photos still count against the deploying
   account's storage, unless the folder is in a shared drive.
 - If you change the script, paste in the new `Code.gs`, run `setup` again (it adds any
-  new columns to the end of the Sheet, and the **Events** tab if it's missing), then use
+  new columns to the end of the Sheet, the **Type** and **Details** columns to the
+  **Events** tab, and the **Events** tab if it's missing), then use
   **Deploy → Manage deployments**, click the pencil, choose **Version: New version** and
   **Deploy**. Don't make a *new* deployment: that creates a new URL and the website
   stops working until it's updated.
@@ -106,7 +114,7 @@ account while the live site uses South-View's.
 1. **Before presenting:** open Staff (PIN `1886`) and click **Reset demo data** twice.
 2. **Gallery:** show the photos and filter by event. Point out that Praise House Project
    has no photos yet.
-3. **QR Sign:** pick Praise House Project. Explain that this goes on the welcome table,
+3. **QR Codes:** pick Praise House Project. Explain that this goes on the welcome table,
    then click **Open the form** (the code works from a phone too, but a phone's
    submissions stay on that phone).
 4. **Submit:** choose a photo, add a caption, check consent and send it.
