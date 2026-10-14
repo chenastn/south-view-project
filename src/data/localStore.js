@@ -1,6 +1,6 @@
 import { createStore, entries, set, get, clear, setMany } from 'idb-keyval'
 import { seedRecords } from './seed'
-import { DEFAULT_EVENTS, cleanEventName, slugify } from './events'
+import { DEFAULT_EVENTS, cleanDetails, cleanEventName, entryId } from './events'
 
 // Demo backend: everything lives in this browser's IndexedDB, seeded with sample photos.
 // Each record mirrors one row of the Google Sheet:
@@ -40,22 +40,29 @@ export async function setStatus(id, status) {
 }
 
 export async function listEvents() {
-  return (await get(EVENTS_KEY, db)) ?? DEFAULT_EVENTS.map((e) => ({ ...e, active: true }))
+  const saved = (await get(EVENTS_KEY, db)) ?? DEFAULT_EVENTS.map((e) => ({ ...e, active: true }))
+  // Events saved by an older version of the demo have no type.
+  return saved.map((e) => ({ type: 'event', details: '', ...e }))
 }
 
-// Same rules as the Apps Script: re-adding a deleted event brings it back.
-export async function addEvent(name) {
-  const clean = cleanEventName(name)
-  if (!clean) throw new Error('Enter a name for the event.')
-  const id = slugify(clean)
+// Same rules as the Apps Script: re-adding a deleted event or burial brings it back.
+export async function addEvent(name, type = 'event', details = '') {
+  const kind = type === 'burial' ? 'burial' : 'event'
+  const cleanName = cleanEventName(name)
+  const cleanInfo = kind === 'burial' ? cleanDetails(details) : ''
+  if (!cleanName) throw new Error(kind === 'burial' ? 'Enter the name of the person buried here.' : 'Enter a name for the event.')
+  const id = entryId(cleanName, kind, cleanInfo)
   const events = await listEvents()
   // Match by name first: the original events have short IDs not made from their names.
-  const existing =
-    events.find((e) => e.name.toLowerCase() === clean.toLowerCase()) ?? events.find((e) => e.id === id)
-  if (existing?.active) throw new Error(`There is already an event called "${existing.name}".`)
+  const same = (e) =>
+    e.type === kind && e.name.toLowerCase() === cleanName.toLowerCase() && e.details.toLowerCase() === cleanInfo.toLowerCase()
+  const existing = events.find(same) ?? events.find((e) => e.id === id)
+  if (existing?.active) {
+    throw new Error(`There is already ${existing.type === 'burial' ? 'a burial' : 'an event'} called "${existing.name}".`)
+  }
   const next = existing
-    ? events.map((e) => (e.id === existing.id ? { ...e, name: clean, active: true } : e))
-    : [...events, { id, name: clean, active: true }]
+    ? events.map((e) => (e.id === existing.id ? { ...e, name: cleanName, details: cleanInfo, active: true } : e))
+    : [...events, { id, name: cleanName, type: kind, details: cleanInfo, active: true }]
   await set(EVENTS_KEY, next, db)
   return next
 }

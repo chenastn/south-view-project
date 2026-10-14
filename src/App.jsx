@@ -26,7 +26,7 @@ export default function App() {
         </Link>
         <nav>
           <NavLink to="/" end>Gallery</NavLink>
-          <NavLink to="/qr">QR Sign</NavLink>
+          <NavLink to="/qr">QR Codes</NavLink>
           <NavLink to="/staff">Staff</NavLink>
         </nav>
         <Link to="/submit" className="button">Share a Photo</Link>

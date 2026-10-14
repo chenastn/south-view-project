@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   addEvent,
   checkAI,
@@ -12,7 +13,7 @@ import {
   setStatus,
   unlockStaff,
 } from '../data/store'
-import { MAX_EVENT_NAME_LENGTH, cleanEventName } from '../data/events'
+import { MAX_DETAILS_LENGTH, MAX_EVENT_NAME_LENGTH, cleanEventName } from '../data/events'
 import { useEvents } from '../events'
 import { AiCheckPanel, Photo, WixNote, formatDate } from '../components'
 
@@ -83,7 +84,7 @@ function ReviewQueue({ onLocked }) {
   const [error, setError] = useState(null)
   const [confirmReset, setConfirmReset] = useState(false)
 
-  const { eventName, activeEvents, setEvents } = useEvents()
+  const { eventName, entry, activeEvents, activeBurials, setEvents } = useEvents()
   const handleError = useCallback(
     (err) => (err.code === 'bad_password' ? onLocked() : setError(err.message || 'Something went wrong.')),
     [onLocked],
@@ -161,14 +162,19 @@ function ReviewQueue({ onLocked }) {
             {t.label} <span>{items.filter((i) => i.status === t.status).length}</span>
           </button>
         ))}
-        <button className={tab === 'events' ? 'tab active' : 'tab'} onClick={() => setTab('events')}>
+        <button className={tab === 'event' ? 'tab active' : 'tab'} onClick={() => setTab('event')}>
           Events <span>{activeEvents.length}</span>
+        </button>
+        <button className={tab === 'burial' ? 'tab active' : 'tab'} onClick={() => setTab('burial')}>
+          Burials <span>{activeBurials.length}</span>
         </button>
       </div>
 
       {error && <p className="error">{error}</p>}
-      {tab === 'events' && <EventManager items={items} onError={handleError} />}
-      {tab !== 'events' && shown.length === 0 && <p className="empty">Nothing here right now.</p>}
+      {(tab === 'event' || tab === 'burial') && (
+        <EventManager key={tab} type={tab} items={items} onError={handleError} />
+      )}
+      {TABS.some((t) => t.status === tab) && shown.length === 0 && <p className="empty">Nothing here right now.</p>}
 
       <div className="review-list">
         {shown.map((item) => (
@@ -176,7 +182,7 @@ function ReviewQueue({ onLocked }) {
             <Photo record={item} className="review-photo" />
             <div className="review-body">
               <div className="review-meta">
-                <strong>{eventName(item.event)}</strong>
+                <strong>{entry(item.event)?.type === 'burial' ? `Burial · ${eventName(item.event)}` : eventName(item.event)}</strong>
                 <span>{item.sample ? 'Sample from southviewpreservation.com' : `Submitted ${formatDate(item.submittedAt)}`}</span>
               </div>
               <p className="review-caption">{item.caption || <em>No caption</em>}</p>
@@ -208,10 +214,30 @@ function ReviewQueue({ onLocked }) {
   )
 }
 
-// The events visitors can pick on the photo form and QR sign.
-function EventManager({ items, onError }) {
-  const { activeEvents, status, setEvents } = useEvents()
+const MANAGER_TEXT = {
+  event: {
+    intro: 'These are the events visitors can choose on the photo form and the QR signs.',
+    placeholder: 'New event name',
+    add: 'Add event',
+    none: 'No events yet.',
+    hint: "Deleting an event takes it off the photo form and QR signs. Photos already shared from it keep the event's name, and adding an event with the same name brings it back.",
+  },
+  burial: {
+    intro: 'Each burial gets its own QR code to place at the grave, and its own page in the gallery.',
+    placeholder: 'Name of the person buried here',
+    add: 'Add burial',
+    none: 'No burials yet.',
+    hint: 'To add many burials at once, paste them into the Events tab of the Google Sheet with Type set to "burial". Deleting a burial takes it off the photo form and QR codes; its photos stay in the gallery.',
+  },
+}
+
+// The events or burials visitors can pick on the photo form and QR codes.
+function EventManager({ type, items, onError }) {
+  const { activeEvents, activeBurials, status, setEvents } = useEvents()
+  const list = type === 'burial' ? activeBurials : activeEvents
+  const text = MANAGER_TEXT[type]
   const [name, setName] = useState('')
+  const [details, setDetails] = useState('')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState(null)
   const [confirmId, setConfirmId] = useState(null)
@@ -233,7 +259,10 @@ function EventManager({ items, onError }) {
 
   async function handleAdd(e) {
     e.preventDefault()
-    if (await run(() => addEvent(name))) setName('')
+    if (await run(() => addEvent(name, type, details))) {
+      setName('')
+      setDetails('')
+    }
   }
 
   async function handleDelete(id) {
@@ -249,46 +278,59 @@ function EventManager({ items, onError }) {
 
   return (
     <div className="events-manager">
-      <p className="lead">These are the events visitors can choose on the photo form and the QR sign.</p>
-      {status === 'loading' && <p className="empty">Loading events…</p>}
-      {status === 'error' && <p className="error">The event list couldn't load. Refresh the page to try again.</p>}
+      <p className="lead">{text.intro}</p>
+      {status === 'loading' && <p className="empty">Loading…</p>}
+      {status === 'error' && <p className="error">The list couldn't load. Refresh the page to try again.</p>}
       {status === 'done' && (
         <ul className="event-list">
-          {activeEvents.map((e) => (
+          {list.map((e) => (
             <li key={e.id}>
               <div>
                 <strong>{e.name}</strong>
+                {e.details && <span>{e.details}</span>}
                 <span>{photoCount(e.id)}</span>
               </div>
-              <button
-                className={confirmId === e.id ? 'button button-danger' : 'button button-outline'}
-                disabled={busy}
-                onClick={() => handleDelete(e.id)}
-              >
-                {confirmId === e.id ? 'Click again to delete' : 'Delete'}
-              </button>
+              <div className="event-actions">
+                <Link className="button button-outline" to={`/qr?event=${e.id}`}>QR code</Link>
+                <button
+                  className={confirmId === e.id ? 'button button-danger' : 'button button-outline'}
+                  disabled={busy}
+                  onClick={() => handleDelete(e.id)}
+                >
+                  {confirmId === e.id ? 'Click again to delete' : 'Delete'}
+                </button>
+              </div>
             </li>
           ))}
-          {activeEvents.length === 0 && <li className="empty">No events yet.</li>}
+          {list.length === 0 && <li className="empty">{text.none}</li>}
         </ul>
       )}
       <form className="event-form" onSubmit={handleAdd}>
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="New event name"
-          aria-label="New event name"
+          placeholder={text.placeholder}
+          aria-label={text.placeholder}
           maxLength={MAX_EVENT_NAME_LENGTH}
         />
+        {type === 'burial' && (
+          <input
+            value={details}
+            onChange={(e) => setDetails(e.target.value)}
+            placeholder="Years, section or plot (optional)"
+            aria-label="Years, section or plot"
+            maxLength={MAX_DETAILS_LENGTH}
+          />
+        )}
         <button className="button" type="submit" disabled={busy || !cleanEventName(name)}>
-          {busy ? 'Saving…' : 'Add event'}
+          {busy ? 'Saving…' : text.add}
         </button>
       </form>
       {message && <p className="error">{message}</p>}
-      <p className="hint">
-        Deleting an event takes it off the photo form and QR sign. Photos already shared from it keep the event's name,
-        and adding an event with the same name brings it back.
-      </p>
+      <p className="hint">{text.hint}</p>
+      {type === 'burial' && list.length > 0 && (
+        <Link className="button button-outline" to="/qr?labels=burials">Print all burial QR codes</Link>
+      )}
     </div>
   )
 }

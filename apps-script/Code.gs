@@ -10,7 +10,8 @@ const EVENTS_SHEET_NAME = 'Events'
 const FOLDER_NAME = 'South-View Gallery Photos'
 const HEADERS = ['ID', 'Submitted', 'Event', 'Caption', 'Status', 'Consent', 'AI flagged', 'AI notes', 'Photo', 'File name', 'File ID', 'AI check data']
 const REQUIRED_COLUMNS = ['ID', 'Status', 'File ID']
-const EVENT_HEADERS = ['ID', 'Name', 'Active']
+const EVENT_HEADERS = ['ID', 'Name', 'Active', 'Type', 'Details']
+const REQUIRED_EVENT_COLUMNS = ['ID', 'Name', 'Active']
 // The Events tab starts with these, so photos shared before it existed keep their names.
 const DEFAULT_EVENTS = [
   ['praise-house', 'Praise House Project'],
@@ -19,6 +20,7 @@ const DEFAULT_EVENTS = [
   ['history-tour', 'Guided History Tour'],
 ]
 const MAX_EVENT_NAME_LENGTH = 60
+const MAX_DETAILS_LENGTH = 80
 const STATUSES = ['pending', 'approved', 'rejected']
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 const MAX_FAILED_LOGINS = 10
@@ -102,7 +104,7 @@ function doPost(e) {
     checkStaffPassword(body.password)
     if (body.action === 'staffList') return { submissions: readRows().filter((r) => r.fileId) }
     if (body.action === 'setStatus') return setStatus(String(body.id), body.status)
-    if (body.action === 'addEvent') return addEvent(body.name)
+    if (body.action === 'addEvent') return addEvent(body.name, body.type, body.details)
     if (body.action === 'deleteEvent') return deleteEvent(String(body.id))
     if (body.action === 'checkAI') {return { aiCheck: checkPhotoWithGemini(String(body.id)) };}
     fail('Unknown action.')
@@ -181,74 +183,104 @@ function eventsSheet() {
   if (!sheet) {
     sheet = ss.insertSheet(EVENTS_SHEET_NAME)
     sheet.appendRow(EVENT_HEADERS)
-    DEFAULT_EVENTS.forEach((e) => sheet.appendRow([e[0], e[1], true]))
+    DEFAULT_EVENTS.forEach((e) => sheet.appendRow([e[0], e[1], true, 'event', '']))
     sheet.setFrozenRows(1)
     sheet.getRange(1, 1, 1, EVENT_HEADERS.length).setFontWeight('bold')
     sheet.getRange(2, EVENT_HEADERS.indexOf('Active') + 1, DEFAULT_EVENTS.length).setDataValidation(checkboxRule())
   }
+  // Events tabs made before burials existed get the Type and Details columns at the end.
+  const header = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0].map((h) => String(h).trim())
+  const missing = EVENT_HEADERS.filter((name) => header.indexOf(name) < 0)
+  if (missing.length) {
+    sheet.getRange(1, header.length + 1, 1, missing.length).setValues([missing]).setFontWeight('bold')
+  }
   return sheet
 }
 
-// Every event, including deleted ones, so older photos can still show their event's
-// name. Before the Events tab exists this is the original four.
+// Every event and burial, including deleted ones, so older photos can still show
+// their names. Before the Events tab exists this is the original four events.
 function readEvents() {
   const sheet = openSpreadsheet().getSheetByName(EVENTS_SHEET_NAME)
-  if (!sheet) return DEFAULT_EVENTS.map((e) => ({ id: e[0], name: e[1], active: true }))
-  const { header, values } = tabValues(sheet)
-  return values
-    .map((row) => ({
-      id: eventId(header, row),
-      name: String(cell(header, row, 'Name')).trim(),
-      active: isActive(cell(header, row, 'Active')),
-    }))
-    .filter((e) => e.id && e.name)
+  if (!sheet) return DEFAULT_EVENTS.map((e) => ({ id: e[0], name: e[1], type: 'event', details: '', active: true }))
+  return entryRows(sheet).filter((e) => e.id && e.name)
 }
 
-function addEvent(name) {
-  const clean = String(name || '').replace(/\s+/g, ' ').trim().slice(0, MAX_EVENT_NAME_LENGTH)
-  if (!clean) fail('Enter a name for the event.')
-  const id = slugify(clean)
+// One entry per row of the Events tab, blank rows included, so index + 2 is the row number.
+function entryRows(sheet) {
+  const { header, values } = tabValues(sheet)
+  return values.map((row) => {
+    const type = entryType(cell(header, row, 'Type'))
+    const name = String(cell(header, row, 'Name')).trim()
+    const details = String(cell(header, row, 'Details')).trim()
+    return {
+      id: String(cell(header, row, 'ID')).trim() || entryId(name, type, details),
+      name: name,
+      type: type,
+      details: details,
+      active: isActive(cell(header, row, 'Active')),
+    }
+  })
+}
+
+function addEvent(name, type, details) {
+  const kind = entryType(type)
+  const clean = cleanText(name, MAX_EVENT_NAME_LENGTH)
+  const info = kind === 'burial' ? cleanText(details, MAX_DETAILS_LENGTH) : ''
+  if (!clean) fail(kind === 'burial' ? 'Enter the name of the person buried here.' : 'Enter a name for the event.')
+  const id = entryId(clean, kind, info)
   withLock(() => {
     const sheet = eventsSheet()
-    const { header, values } = tabValues(sheet)
-    requireColumns(header, EVENT_HEADERS, EVENTS_SHEET_NAME)
+    const { header } = tabValues(sheet)
+    requireColumns(header, REQUIRED_EVENT_COLUMNS, EVENTS_SHEET_NAME)
+    const entries = entryRows(sheet)
     // Match by name first: the original events have short IDs not made from their names.
-    const sameName = (r) => String(cell(header, r, 'Name')).trim().toLowerCase() === clean.toLowerCase()
-    let row = values.findIndex(sameName)
-    if (row < 0) row = values.findIndex((r) => eventId(header, r) === id)
+    const same = (e) => e.type === kind && e.name.toLowerCase() === clean.toLowerCase() && e.details.toLowerCase() === info.toLowerCase()
+    let row = entries.findIndex(same)
+    if (row < 0) row = entries.findIndex((e) => e.id === id)
     if (row < 0) {
-      const fields = { 'ID': id, 'Name': plainText(clean), 'Active': true }
+      const fields = { 'ID': id, 'Name': plainText(clean), 'Active': true, 'Type': kind, 'Details': plainText(info) }
       sheet.appendRow(header.map((h) => (h in fields ? fields[h] : '')))
       sheet.getRange(sheet.getLastRow(), header.indexOf('Active') + 1).setDataValidation(checkboxRule())
       return
     }
-    if (isActive(cell(header, values[row], 'Active'))) {
-      fail('There is already an event called "' + cell(header, values[row], 'Name') + '".')
+    if (entries[row].active) {
+      fail('There is already ' + (entries[row].type === 'burial' ? 'a burial' : 'an event') + ' called "' + entries[row].name + '".')
     }
-    // Adding a deleted event again brings it back, still linked to its old photos.
+    // Adding a deleted entry again brings it back, still linked to its old photos.
     sheet.getRange(row + 2, header.indexOf('Name') + 1).setValue(plainText(clean))
     sheet.getRange(row + 2, header.indexOf('Active') + 1).setValue(true)
   })
   return { events: readEvents() }
 }
 
-// Deleting takes an event off the photo form and QR sign. Its row stays (with Active
-// unticked) so photos already shared from it keep the event's name.
+// Deleting takes an event or burial off the photo form and QR codes. Its row stays
+// (with Active unticked) so photos already shared from it keep its name.
 function deleteEvent(id) {
   withLock(() => {
     const sheet = eventsSheet()
-    const { header, values } = tabValues(sheet)
-    requireColumns(header, EVENT_HEADERS, EVENTS_SHEET_NAME)
-    const row = values.findIndex((r) => eventId(header, r) === id)
-    if (row < 0) fail('That event is no longer in the Google Sheet.')
+    const { header } = tabValues(sheet)
+    requireColumns(header, REQUIRED_EVENT_COLUMNS, EVENTS_SHEET_NAME)
+    const row = entryRows(sheet).findIndex((e) => e.id === id)
+    if (row < 0) fail('That entry is no longer in the Google Sheet.')
     sheet.getRange(row + 2, header.indexOf('Active') + 1).setValue(false)
   })
   return { events: readEvents() }
 }
 
-// Rows typed into the Events tab without an ID get one from their name.
-function eventId(header, row) {
-  return String(cell(header, row, 'ID')).trim() || slugify(String(cell(header, row, 'Name')).trim())
+// A blank Type cell counts as an event, so rows from before burials existed still work.
+function entryType(value) {
+  return String(value || '').trim().toLowerCase() === 'burial' ? 'burial' : 'event'
+}
+
+// Rows typed into the Events tab without an ID get one from their name. Burial IDs
+// include the details, so two people with the same name get separate pages.
+// Matches entryId() in src/data/events.js.
+function entryId(name, type, details) {
+  return type === 'burial' ? slugify('burial ' + name + ' ' + details) : slugify(name)
+}
+
+function cleanText(text, max) {
+  return String(text || '').replace(/\s+/g, ' ').trim().slice(0, max)
 }
 
 // A blank Active cell counts as active, so a row typed in by hand just works.

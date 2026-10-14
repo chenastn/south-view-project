@@ -78,8 +78,8 @@ export async function listEvents() {
   return events
 }
 
-export async function addEvent(name) {
-  const { events } = await post({ action: 'addEvent', name, password: sessionStorage.getItem(PASSWORD_KEY) })
+export async function addEvent(name, type = 'event', details = '') {
+  const { events } = await post({ action: 'addEvent', name, type, details, password: sessionStorage.getItem(PASSWORD_KEY) })
   return events
 }
 
