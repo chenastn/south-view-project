@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useEvents } from '../events'
-import { addSubmission } from '../data/store'
+import { addSubmission, isDemo } from '../data/store'
 import { checkSubmission } from '../moderation'
 import { resizeImage } from '../utils/resizeImage'
 import { WixNote } from '../components'
@@ -47,7 +47,7 @@ export default function Submit() {
       setProgress({ current: sent + 1, total: batch.length })
       try {
         const image = (await resizeImage(item.file).catch(() => null)) ?? item.file
-        const aiCheck = await checkSubmission({ caption, fileName: item.file.name })
+        const aiCheck = isDemo ? await checkSubmission({ caption, fileName: item.file.name }) : null
         await addSubmission({
           id: crypto.randomUUID(),
           event: chosen.id,
@@ -90,8 +90,9 @@ export default function Submit() {
         <h1>Thank you for sharing</h1>
         <p className="lead">
           {what} {chosen.type === 'burial' ? 'of' : 'from'} <strong>{chosen.name}</strong>{' '}
-          {sentCount === 1 ? 'was' : 'were'} sent to South-View. {sentCount === 1 ? 'It' : 'They'} will appear in
-          the gallery after a staff member reviews {sentCount === 1 ? 'it' : 'them'}.
+          {sentCount === 1 ? 'was' : 'were'} sent to South-View.{' '}
+          {sentCount === 1 ? 'It' : 'They'} will appear in the gallery if the automated check
+          passes. Anything that needs a closer look waits for a staff member.
         </p>
         <div className="actions">
           <button className="button" onClick={reset}>Share more photos</button>
@@ -112,7 +113,7 @@ export default function Submit() {
         {chosen?.type === 'burial'
           ? `Add a photo or memory of ${chosen.name} to South-View's community gallery.`
           : 'Were you at a South-View event? Add your photos to the community gallery.'}{' '}
-        A South-View staff member reviews every photo before it goes online.
+        Photos that pass an automated check appear in the gallery. Anything flagged waits for a staff member.
       </p>
 
       <form className="form" onSubmit={handleSubmit}>

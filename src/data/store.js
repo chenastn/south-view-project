@@ -18,7 +18,4 @@ export const {
   lockStaff,
 } = isDemo ? local : sheet
 
-// Live Apps Script only. Demo has no Gemini backend.
-export const checkAI = isDemo ? async () => null : sheet.checkAI
-
 export const resetDemo = local.resetDemo

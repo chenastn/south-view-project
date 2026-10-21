@@ -42,23 +42,31 @@ const ENGINE_LABELS = { simulated: 'Simulated AI check', gemini: 'Gemini AI chec
 
 export function AiCheckPanel({ check }) {
   if (!check) return null
+  const flagged = check.approved === 0 || check.flagged
+  const rules = Array.isArray(check.rules)
+    ? check.rules
+    : check.approved == null
+      ? []
+      : [{ label: 'Gemini review', result: check.approved === 1 ? 'pass' : 'flag' }]
   return (
-    <div className={`ai-check ${check.flagged ? 'is-flagged' : 'is-clear'}`}>
+    <div className={`ai-check ${flagged ? 'is-flagged' : 'is-clear'}`}>
       <div className="ai-check-head">
-        <span>{check.flagged ? 'Flagged for a closer look' : 'No issues found'}</span>
+        <span>{flagged ? 'Flagged for a closer look' : 'No issues found'}</span>
         <span className="tag">{ENGINE_LABELS[check.engine] ?? 'AI check'}</span>
       </div>
-      <ul>
-        {check.rules.map((rule) => (
-          <li key={rule.label} className={rule.result}>
-            <span className="mark">{rule.result === 'flag' ? '!' : '✓'}</span>
-            <span>
-              {rule.label}
-              {rule.reason && <em> — {rule.reason}</em>}
-            </span>
-          </li>
-        ))}
-      </ul>
+      {rules.length > 0 && (
+        <ul>
+          {rules.map((rule) => (
+            <li key={rule.label} className={rule.result}>
+              <span className="mark">{rule.result === 'flag' ? '!' : '✓'}</span>
+              <span>
+                {rule.label}
+                {rule.reason && <em> — {rule.reason}</em>}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }

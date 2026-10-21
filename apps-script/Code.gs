@@ -10,8 +10,7 @@ const EVENTS_SHEET_NAME = 'Events'
 const FOLDER_NAME = 'South-View Gallery Photos'
 const HEADERS = ['ID', 'Submitted', 'Event', 'Caption', 'Status', 'Consent', 'AI flagged', 'AI notes', 'Photo', 'File name', 'File ID', 'AI check data']
 const REQUIRED_COLUMNS = ['ID', 'Status', 'File ID']
-const EVENT_HEADERS = ['ID', 'Name', 'Active', 'Type', 'Details']
-const REQUIRED_EVENT_COLUMNS = ['ID', 'Name', 'Active']
+const EVENT_HEADERS = ['ID', 'Name', 'Active']
 // The Events tab starts with these, so photos shared before it existed keep their names.
 const DEFAULT_EVENTS = [
   ['praise-house', 'Praise House Project'],
@@ -20,11 +19,18 @@ const DEFAULT_EVENTS = [
   ['history-tour', 'Guided History Tour'],
 ]
 const MAX_EVENT_NAME_LENGTH = 60
-const MAX_DETAILS_LENGTH = 80
 const STATUSES = ['pending', 'approved', 'rejected']
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 const MAX_FAILED_LOGINS = 10
 const LOCKOUT_SECONDS = 15 * 60
+const GEMINI_MODEL = 'gemini-3.5-flash-lite'
+// Edit these and redeploy. They are sent with each new photo.
+const GEMINI_RULES = [
+  'No nudity or sexual content',
+  'No violence or graphic injury',
+  'No offensive gestures',
+  'No disrespectful behavior toward graves or memorials',
+]
 
 const props = PropertiesService.getScriptProperties()
 
@@ -104,9 +110,8 @@ function doPost(e) {
     checkStaffPassword(body.password)
     if (body.action === 'staffList') return { submissions: readRows().filter((r) => r.fileId) }
     if (body.action === 'setStatus') return setStatus(String(body.id), body.status)
-    if (body.action === 'addEvent') return addEvent(body.name, body.type, body.details)
+    if (body.action === 'addEvent') return addEvent(body.name)
     if (body.action === 'deleteEvent') return deleteEvent(String(body.id))
-    if (body.action === 'checkAI') {return { aiCheck: checkPhotoWithGemini(String(body.id)) };}
     fail('Unknown action.')
   })
 }
@@ -130,23 +135,24 @@ function submit(body) {
   const file = photoFolder().createFile(blob)
   shareByLink(file)
 
-  const aiCheck = body.aiCheck && Array.isArray(body.aiCheck.rules) ? body.aiCheck : null
-  const flagged = aiCheck ? aiCheck.rules.filter((r) => r.result === 'flag') : []
+  // One cheap Gemini call per photo. Passes go live; fails stay pending for staff.
+  const aiCheck = reviewPhotoWithGemini(fileName, mimeType, image)
+  const approved = aiCheck && Number(aiCheck.approved) === 1
   appendRow({
     'ID': id,
     'Submitted': new Date(),
     'Event': event,
     'Caption': plainText(caption),
-    'Status': 'pending',
+    'Status': approved ? 'approved' : 'pending',
     'Consent': true,
-    'AI flagged': aiCheck ? (aiCheck.flagged ? 'Yes' : 'No') : '',
-    'AI notes': plainText(flagged.map((r) => r.label + ': ' + r.reason).join('\n') || (aiCheck ? 'No issues found' : '')),
+    'AI flagged': aiCheck ? (approved ? 'No' : 'Yes') : '',
+    'AI notes': '',
     'Photo': '=HYPERLINK("' + file.getUrl() + '", "Open photo")',
     'File name': plainText(fileName),
     'File ID': file.getId(),
-    'AI check data': aiCheck ? JSON.stringify(aiCheck).slice(0, 5000) : '',
+    'AI check data': aiCheck ? JSON.stringify(aiCheck) : '',
   })
-  return { id }
+  return { id, approved: approved ? 1 : 0 }
 }
 
 // Link sharing lets the gallery show the photo. A file ID only reaches the public
@@ -183,104 +189,74 @@ function eventsSheet() {
   if (!sheet) {
     sheet = ss.insertSheet(EVENTS_SHEET_NAME)
     sheet.appendRow(EVENT_HEADERS)
-    DEFAULT_EVENTS.forEach((e) => sheet.appendRow([e[0], e[1], true, 'event', '']))
+    DEFAULT_EVENTS.forEach((e) => sheet.appendRow([e[0], e[1], true]))
     sheet.setFrozenRows(1)
     sheet.getRange(1, 1, 1, EVENT_HEADERS.length).setFontWeight('bold')
     sheet.getRange(2, EVENT_HEADERS.indexOf('Active') + 1, DEFAULT_EVENTS.length).setDataValidation(checkboxRule())
   }
-  // Events tabs made before burials existed get the Type and Details columns at the end.
-  const header = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0].map((h) => String(h).trim())
-  const missing = EVENT_HEADERS.filter((name) => header.indexOf(name) < 0)
-  if (missing.length) {
-    sheet.getRange(1, header.length + 1, 1, missing.length).setValues([missing]).setFontWeight('bold')
-  }
   return sheet
 }
 
-// Every event and burial, including deleted ones, so older photos can still show
-// their names. Before the Events tab exists this is the original four events.
+// Every event, including deleted ones, so older photos can still show their event's
+// name. Before the Events tab exists this is the original four.
 function readEvents() {
   const sheet = openSpreadsheet().getSheetByName(EVENTS_SHEET_NAME)
-  if (!sheet) return DEFAULT_EVENTS.map((e) => ({ id: e[0], name: e[1], type: 'event', details: '', active: true }))
-  return entryRows(sheet).filter((e) => e.id && e.name)
-}
-
-// One entry per row of the Events tab, blank rows included, so index + 2 is the row number.
-function entryRows(sheet) {
+  if (!sheet) return DEFAULT_EVENTS.map((e) => ({ id: e[0], name: e[1], active: true }))
   const { header, values } = tabValues(sheet)
-  return values.map((row) => {
-    const type = entryType(cell(header, row, 'Type'))
-    const name = String(cell(header, row, 'Name')).trim()
-    const details = String(cell(header, row, 'Details')).trim()
-    return {
-      id: String(cell(header, row, 'ID')).trim() || entryId(name, type, details),
-      name: name,
-      type: type,
-      details: details,
+  return values
+    .map((row) => ({
+      id: eventId(header, row),
+      name: String(cell(header, row, 'Name')).trim(),
       active: isActive(cell(header, row, 'Active')),
-    }
-  })
+    }))
+    .filter((e) => e.id && e.name)
 }
 
-function addEvent(name, type, details) {
-  const kind = entryType(type)
-  const clean = cleanText(name, MAX_EVENT_NAME_LENGTH)
-  const info = kind === 'burial' ? cleanText(details, MAX_DETAILS_LENGTH) : ''
-  if (!clean) fail(kind === 'burial' ? 'Enter the name of the person buried here.' : 'Enter a name for the event.')
-  const id = entryId(clean, kind, info)
+function addEvent(name) {
+  const clean = String(name || '').replace(/\s+/g, ' ').trim().slice(0, MAX_EVENT_NAME_LENGTH)
+  if (!clean) fail('Enter a name for the event.')
+  const id = slugify(clean)
   withLock(() => {
     const sheet = eventsSheet()
-    const { header } = tabValues(sheet)
-    requireColumns(header, REQUIRED_EVENT_COLUMNS, EVENTS_SHEET_NAME)
-    const entries = entryRows(sheet)
+    const { header, values } = tabValues(sheet)
+    requireColumns(header, EVENT_HEADERS, EVENTS_SHEET_NAME)
     // Match by name first: the original events have short IDs not made from their names.
-    const same = (e) => e.type === kind && e.name.toLowerCase() === clean.toLowerCase() && e.details.toLowerCase() === info.toLowerCase()
-    let row = entries.findIndex(same)
-    if (row < 0) row = entries.findIndex((e) => e.id === id)
+    const sameName = (r) => String(cell(header, r, 'Name')).trim().toLowerCase() === clean.toLowerCase()
+    let row = values.findIndex(sameName)
+    if (row < 0) row = values.findIndex((r) => eventId(header, r) === id)
     if (row < 0) {
-      const fields = { 'ID': id, 'Name': plainText(clean), 'Active': true, 'Type': kind, 'Details': plainText(info) }
+      const fields = { 'ID': id, 'Name': plainText(clean), 'Active': true }
       sheet.appendRow(header.map((h) => (h in fields ? fields[h] : '')))
       sheet.getRange(sheet.getLastRow(), header.indexOf('Active') + 1).setDataValidation(checkboxRule())
       return
     }
-    if (entries[row].active) {
-      fail('There is already ' + (entries[row].type === 'burial' ? 'a burial' : 'an event') + ' called "' + entries[row].name + '".')
+    if (isActive(cell(header, values[row], 'Active'))) {
+      fail('There is already an event called "' + cell(header, values[row], 'Name') + '".')
     }
-    // Adding a deleted entry again brings it back, still linked to its old photos.
+    // Adding a deleted event again brings it back, still linked to its old photos.
     sheet.getRange(row + 2, header.indexOf('Name') + 1).setValue(plainText(clean))
     sheet.getRange(row + 2, header.indexOf('Active') + 1).setValue(true)
   })
   return { events: readEvents() }
 }
 
-// Deleting takes an event or burial off the photo form and QR codes. Its row stays
-// (with Active unticked) so photos already shared from it keep its name.
+// Deleting takes an event off the photo form and QR sign. Its row stays (with Active
+// unticked) so photos already shared from it keep the event's name.
 function deleteEvent(id) {
   withLock(() => {
     const sheet = eventsSheet()
-    const { header } = tabValues(sheet)
-    requireColumns(header, REQUIRED_EVENT_COLUMNS, EVENTS_SHEET_NAME)
-    const row = entryRows(sheet).findIndex((e) => e.id === id)
-    if (row < 0) fail('That entry is no longer in the Google Sheet.')
+    const { header, values } = tabValues(sheet)
+    requireColumns(header, EVENT_HEADERS, EVENTS_SHEET_NAME)
+    const row = values.findIndex((r) => eventId(header, r) === id)
+    if (row < 0) fail('That event is no longer in the Google Sheet.')
     sheet.getRange(row + 2, header.indexOf('Active') + 1).setValue(false)
   })
   return { events: readEvents() }
 }
 
-// A blank Type cell counts as an event, so rows from before burials existed still work.
-function entryType(value) {
-  return String(value || '').trim().toLowerCase() === 'burial' ? 'burial' : 'event'
-}
-
-// Rows typed into the Events tab without an ID get one from their name. Burial IDs
-// include the details, so two people with the same name get separate pages.
-// Matches entryId() in src/data/events.js.
-function entryId(name, type, details) {
-  return type === 'burial' ? slugify('burial ' + name + ' ' + details) : slugify(name)
-}
-
-function cleanText(text, max) {
-  return String(text || '').replace(/\s+/g, ' ').trim().slice(0, max)
+// Rows typed into the Events tab without an ID get one from their name.
+function eventId(header, row) {
+  return String(cell(header, row, 'ID')).trim() || slugify(String(cell(header, row, 'Name')).trim())
 }
 
 // A blank Active cell counts as active, so a row typed in by hand just works.
@@ -440,155 +416,49 @@ function fail(message, code) {
   throw err
 }
 
-function testGeminiConnection() {
-  const apiKey = PropertiesService
-    .getScriptProperties()
-    .getProperty('GEMINI_API_KEY');
-
-  if (!apiKey) {
-    throw new Error('GEMINI_API_KEY is missing');
-  }
-
-  const url =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent';
-
-  const payload = {
-    contents: [{
-      parts: [{
-        text: 'Reply with exactly: Gemini connection successful'
-      }]
-    }]
-  };
-
-  const response = UrlFetchApp.fetch(url, {
-    method: 'post',
-    contentType: 'application/json',
-    headers: {
-      'x-goog-api-key': apiKey
-    },
-    payload: JSON.stringify(payload),
-    muteHttpExceptions: true
-  });
-
-  const status = response.getResponseCode();
-  const result = JSON.parse(response.getContentText());
-
-  if (status !== 200) {
-    throw new Error(
-      'Gemini API error ' + status + ': ' +
-      JSON.stringify(result.error || result)
-    );
-  }
-
-  const answer = result.candidates?.[0]?.content?.parts
-    ?.map(part => part.text || '')
-    .join('');
-
-  console.log('Gemini response: ' + answer);
-}
-
-function checkPhotoWithGemini(id) {
-  const { sheet, header, values } = readSheet();
-  const rowIndex = values.findIndex(
-    row => String(cell(header, row, 'ID')) === id
-  );
-
-  if (rowIndex === -1) fail('Photo not found.');
-
-  const row = values[rowIndex];
-  const fileId = String(cell(header, row, 'File ID'));
-  const caption = String(cell(header, row, 'Caption'));
-  const blob = DriveApp.getFileById(fileId).getBlob();
-
-  const response = UrlFetchApp.fetch(
-    'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent',
-    {
-      method: 'post',
-      contentType: 'application/json',
-      headers: {
-        'x-goog-api-key': props.getProperty('GEMINI_API_KEY')
+// Returns { approved: 1|0, name } or null if Gemini is missing or errors (row stays pending).
+function reviewPhotoWithGemini(fileName, mimeType, base64) {
+  const apiKey = props.getProperty('GEMINI_API_KEY')
+  if (!apiKey) return null
+  const rules = GEMINI_RULES.map((rule, i) => (i + 1) + '. ' + rule).join('\n')
+  try {
+    const response = UrlFetchApp.fetch(
+      'https://generativelanguage.googleapis.com/v1beta/models/' + GEMINI_MODEL + ':generateContent',
+      {
+        method: 'post',
+        contentType: 'application/json',
+        headers: { 'x-goog-api-key': apiKey },
+        payload: JSON.stringify({
+          contents: [{
+            parts: [
+              {
+                text: 'Review this community cemetery gallery photo.\n'
+                  + 'Approve only if it follows every rule.\n'
+                  + rules + '\n\n'
+                  + 'Photo name: ' + String(fileName).replace(/"/g, '') + '\n'
+                  + 'Return only JSON with approved (1 or 0) and name (the photo name).',
+              },
+              { inline_data: { mime_type: mimeType, data: base64 } },
+            ],
+          }],
+          generationConfig: { responseMimeType: 'application/json' },
+        }),
+        muteHttpExceptions: true,
       },
-      payload: JSON.stringify({
-        contents: [{
-          parts: [
-            {
-              text: `Review this photo for a community cemetery gallery.
-Caption: ${caption}
-
-Flag inappropriate content, nudity, violence, offensive gestures,
-or disrespectful behavior toward graves or memorials.
-
-Return only JSON in this format:
-{
-  "flagged": false,
-  "reason": "Brief explanation"
-}`
-            },
-            {
-              inline_data: {
-                mime_type: blob.getContentType(),
-                data: Utilities.base64Encode(blob.getBytes())
-              }
-            }
-          ]
-        }],
-        generationConfig: {
-          responseMimeType: 'application/json'
-        }
-      }),
-      muteHttpExceptions: true
+    )
+    if (response.getResponseCode() !== 200) {
+      console.error(response.getContentText())
+      return null
     }
-  );
-
-  if (response.getResponseCode() !== 200) {
-    throw new Error(response.getContentText());
+    const result = JSON.parse(response.getContentText())
+    const raw = JSON.parse(result.candidates[0].content.parts[0].text)
+    return {
+      engine: 'gemini',
+      approved: Number(raw.approved) === 1 ? 1 : 0,
+      name: String(raw.name || fileName),
+    }
+  } catch (err) {
+    console.error(err)
+    return null
   }
-
-  const result = JSON.parse(response.getContentText());
-  const raw = JSON.parse(
-    result.candidates[0].content.parts[0].text
-  );
-  // Same shape the Staff page's AiCheckPanel expects (flagged + rules[]).
-  const flagged = Boolean(raw.flagged);
-  const reason = String(raw.reason || '');
-  const aiCheck = {
-    engine: 'gemini',
-    flagged: flagged,
-    reason: reason,
-    rules: [{
-      label: 'Gemini review',
-      result: flagged ? 'flag' : 'pass',
-      reason: reason,
-    }],
-  };
-
-  const rowNumber = rowIndex + 2;
-
-  sheet.getRange(rowNumber, header.indexOf('AI flagged') + 1)
-    .setValue(aiCheck.flagged ? 'Yes' : 'No');
-
-  sheet.getRange(rowNumber, header.indexOf('AI notes') + 1)
-    .setValue(plainText(aiCheck.reason));
-
-  sheet.getRange(rowNumber, header.indexOf('AI check data') + 1)
-    .setValue(JSON.stringify(aiCheck));
-
-  return aiCheck;
-}
-
-function testGeminiPhoto() {
-  const { header, values } = readSheet();
-
-  const photo = values.find(
-    row => String(cell(header, row, 'File ID')).trim()
-  );
-
-  if (!photo) {
-    throw new Error('No uploaded photos found.');
-  }
-
-  const id = String(cell(header, photo, 'ID'));
-  const result = checkPhotoWithGemini(id);
-
-  console.log(JSON.stringify(result, null, 2));
 }
