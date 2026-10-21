@@ -13,9 +13,9 @@ same flow the final version will use inside South-View's Wix site:
 4. Approved photos appear in a public gallery, sorted by event or burial, with a search
    box. The **Burials** view lists photos by the day they were shared, newest first, and
    narrows to one person.
-5. Burial photos are the one exception to waiting: one that passes the AI check shows on
-   that person's page right away, until midnight. After that it's hidden until staff
-   approve it.
+5. Burial photos are the one exception to waiting: one that passes the AI check shows in
+   the **Burials** view and on that person's page right away, until midnight. After that
+   it's hidden until staff approve it.
 
 This is a stand-in for the pitch demo, not the final product. The real build uses Wix's
 own tools (see the mapping below).
@@ -101,13 +101,13 @@ account while the live site uses South-View's.
   QR code (Staff → Burials → **QR code**, or **Print all burial QR codes** for a sheet of
   labels) and its own gallery link, `#/?event=<id>`.
 - Event photos go online only after a staff member approves them. Burial photos are the
-  one exception: Gemini checks each one as it's shared, and one that passes shows on that
-  person's gallery page (not in **All photos** or the **Burials** view) until midnight
-  Atlanta time, while its Status is still `pending`. The **Shown until** column says when
-  it comes down; clear that cell to take it down sooner. Approving it keeps it in the
-  gallery for good, and rejecting it takes it down right away. A photo Gemini flags, or
-  can't check (no `GEMINI_API_KEY`, or Gemini is busy), stays hidden until staff approve
-  it.
+  one exception: Gemini checks each one as it's shared, and one that passes shows in the
+  gallery's **Burials** view and on that person's page (not in **All photos**) until
+  midnight Atlanta time, while its Status is still `pending`. The **Shown until** column
+  says when it comes down; clear that cell to take it down sooner. Approving it keeps it
+  in the gallery for good, and rejecting it takes it down right away. A photo Gemini
+  flags, or can't check (no `GEMINI_API_KEY`, or Gemini is busy), stays hidden until
+  staff approve it.
 - Don't rename the **ID**, **Status**, **File ID** or **Shown until** columns. Other
   columns can be reordered, and you can add your own. In the **Events** tab, don't change
   an event's **ID**: that's how photos stay linked to it.
@@ -143,11 +143,12 @@ account while the live site uses South-View's.
    reject it.
 6. **Approve** the new photo, go back to the Gallery and filter by Praise House Project.
 7. **Burial day:** on Staff → **Burials**, add a burial, click its **QR code**, then
-   **Open the form**. Send a photo: it passes the check and is on that person's page
-   right away, marked **Shared today**, while it's still pending on the Staff page. Send
-   another with a phone number in the caption: it stays hidden until staff review it.
-8. **Gallery → Burials:** today's photo isn't in the general Burials view yet. Approve it
-   on the Staff page, and it joins the Burials view, grouped under **Today**.
+   **Open the form**. Send a photo: it passes the check and shows up right away in
+   **Gallery → Burials** and on that person's page, marked **Shared today**, while it's
+   still pending on the Staff page. Send another with a phone number in the caption: it
+   stays hidden until staff review it.
+8. **Gallery → All photos:** today's photo isn't there yet. Approve it on the Staff page,
+   and it's in All photos too, without the **Shared today** tag, and stays after midnight.
 
 To flag a photo live, put a phone number or email in the caption, or describe someone
 "standing on a headstone".
@@ -160,7 +161,7 @@ To flag a photo live, put a phone number or email in the caption, or describe so
 | Simulated AI check | Automation on "Item added" that runs the check and emails staff |
 | Staff review queue | Staff edit the Collection item and set approval to true |
 | Gallery by event | Pro Gallery bound to the Collection, filtered to approved items |
-| Burial-day photos | The same Automation runs the AI check on burial photos and, if it passes, fills a "shown until" date; a burial's page also shows items whose "shown until" hasn't passed |
+| Burial-day photos | The same Automation runs the AI check on burial photos and, if it passes, fills a "shown until" date; the Burials view and each burial's page also show items whose "shown until" hasn't passed |
 | Browser storage (IndexedDB) | The CMS Collection itself |
 
 ## Swapping in a real AI check

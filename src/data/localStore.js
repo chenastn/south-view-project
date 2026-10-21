@@ -25,12 +25,12 @@ export async function listAll() {
     .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt))
 }
 
-// Approved photos, plus burial photos still having their day on that person's page. Newest first.
+// Approved photos, plus burial photos still within the day they were shared. Newest first.
 export async function listGallery() {
   return (await listAll()).filter((r) => r.status === 'approved' || (r.status === 'pending' && isShownToday(r)))
 }
 
-// A burial photo that passes the AI check shows on that person's page until midnight, as in
+// A burial photo that passes the AI check shows in the gallery until midnight, as in
 // submit() in apps-script/Code.gs. The demo uses this browser's midnight, not Atlanta's.
 export async function addSubmission(record) {
   await ensureSeeded()
@@ -44,7 +44,7 @@ export async function addSubmission(record) {
   return { shownUntil }
 }
 
-// Staff review ends a burial photo's day on its page, as in apps-script/Code.gs.
+// Staff review ends a burial photo's day in the gallery, as in apps-script/Code.gs.
 export async function setStatus(id, status) {
   const record = await get(id, db)
   if (record) await set(id, { ...record, status, shownUntil: '' }, db)

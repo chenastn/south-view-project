@@ -96,8 +96,9 @@ function doGet(e) {
     const photo = (r) => ({ id: r.id, event: r.event, caption: r.caption, submittedAt: r.submittedAt, fileId: r.fileId })
     return {
       photos: rows.filter((r) => r.status === 'approved').map(photo),
-      // Pending burial photos that passed the AI check, for that person's page only. They
-      // come as a separate list so a website from before them never shows them as approved.
+      // Pending burial photos that passed the AI check, for the Burials view and that
+      // person's page. They come as a separate list so a website from before them never
+      // shows them as approved.
       burialDayPhotos: rows
         .filter((r) => r.status === 'pending' && new Date(r.shownUntil) > now)
         .map((r) => Object.assign(photo(r), { shownUntil: r.shownUntil })),
@@ -145,9 +146,9 @@ function submit(body) {
   // script's own checks can say they're from Gemini, since the Staff page doesn't run
   // Gemini again on those.
   let aiCheck = body.aiCheck && Array.isArray(body.aiCheck.rules) && body.aiCheck.engine !== 'gemini' ? body.aiCheck : null
-  // Gemini checks burial photos right away. One that passes shows on that person's page
-  // until midnight while it waits for staff. If Gemini flags it or can't check it, it stays
-  // hidden until staff approve it, like every other photo.
+  // Gemini checks burial photos right away. One that passes shows in the gallery's Burials
+  // view and on that person's page until midnight while it waits for staff. If Gemini flags
+  // it or can't check it, it stays hidden until staff approve it, like every other photo.
   let shownUntil = ''
   if (chosen.type === 'burial') {
     try {
@@ -204,8 +205,8 @@ function shareByLink(file) {
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW)
 }
 
-// A staff decision also ends a burial photo's day on its page: approved photos are in the
-// gallery for good, and the rest stay hidden.
+// A staff decision also ends a burial photo's day in the gallery: approved photos are in
+// the gallery for good, and the rest stay hidden.
 function setStatus(id, status) {
   if (STATUSES.indexOf(status) < 0) fail('Unknown status.')
   withLock(() => {
@@ -550,7 +551,7 @@ function checkPhotoWithGemini(id) {
   if (!row || !row.fileId) fail('That photo is no longer in the Google Sheet.')
   const aiCheck = geminiCheck(DriveApp.getFileById(row.fileId).getBlob(), row.caption)
   const cells = aiColumns(aiCheck)
-  // A burial photo Gemini now flags comes off its page right away.
+  // A burial photo Gemini now flags comes down right away.
   if (aiCheck.flagged) cells['Shown until'] = ''
   // Find the row again: staff may have changed the Sheet while Gemini was answering.
   withLock(() => {

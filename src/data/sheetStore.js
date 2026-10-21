@@ -49,7 +49,7 @@ export async function listAll() {
   return submissions.map(toRecord).sort((a, b) => b.submittedAt.localeCompare(a.submittedAt))
 }
 
-// shownUntil is set when a burial photo passed the AI check and is on that person's page.
+// shownUntil is set when a burial photo passed the AI check and is in the gallery until then.
 export async function addSubmission(record) {
   const { shownUntil } = await post({
     action: 'submit',

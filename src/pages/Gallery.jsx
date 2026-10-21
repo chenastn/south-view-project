@@ -49,12 +49,12 @@ export default function Gallery() {
   }, [open])
 
   const isBurial = (p) => entry(p.event)?.type === 'burial'
-  // Burial photos that passed the AI check today (they have shownUntil) show only on that
-  // person's page, until midnight. Every other view, Burials included, is approved photos.
+  // Burial photos that passed the AI check today (they have shownUntil) show in the Burials
+  // view and on that person's page until midnight. All photos and events are approved only.
   const approved = photos.filter((p) => !p.shownUntil)
-  const onPage = photos.filter((p) => !p.shownUntil || isShownToday(p))
-  const countFor = (id) => onPage.filter((p) => p.event === id).length
-  const burialPhotos = approved.filter(isBurial)
+  const withToday = photos.filter((p) => !p.shownUntil || isShownToday(p))
+  const countFor = (id) => withToday.filter((p) => p.event === id).length
+  const burialPhotos = withToday.filter(isBurial)
   // Current events, plus deleted ones that still have photos in the gallery.
   const filters = events.filter((e) => e.type === 'event' && (e.active || countFor(e.id) > 0))
   const selected = filter !== 'all' && filter !== BURIALS ? entry(filter) : null
@@ -72,11 +72,17 @@ export default function Gallery() {
     const text = `${p.caption} ${e?.name ?? ''} ${e?.details ?? ''}`.toLowerCase()
     return words.every((w) => text.includes(w))
   }
-  const inView = filter === 'all' ? approved : filter === BURIALS ? burialPhotos : onPage.filter((p) => p.event === filter)
+  const inView = filter === 'all' ? approved : filter === BURIALS ? burialPhotos : withToday.filter((p) => p.event === filter)
   const shown = inView.filter(matches)
   // Burial photos are grouped by the day they were shared, newest first.
   const groups = inBurials ? byDay(shown) : [{ day: null, photos: shown }]
   const today = formatDate(new Date())
+  const todayNote = shown.some((p) => p.shownUntil) && (
+    <p className="burial-day-note">
+      Photos marked <strong>Shared today</strong> passed an automatic check and are shown until midnight.
+      After that, they're hidden until a South-View staff member approves them.
+    </p>
+  )
 
   const shareLink = selected?.active ? `/submit?event=${selected.id}` : '/submit'
   const emptyText = words.length
@@ -84,9 +90,7 @@ export default function Gallery() {
     : filter === 'all'
       ? 'No approved photos yet.'
       : filter === BURIALS
-        ? people.length > 0
-          ? 'No burial photos have been approved yet. Choose a person to see photos shared today.'
-          : 'No approved burial photos yet.'
+        ? 'No burial photos yet.'
         : selected?.type === 'burial'
           ? `No photos of ${selected.name} yet.`
           : 'No approved photos here yet.'
@@ -143,17 +147,13 @@ export default function Gallery() {
             </select>
           </label>
         )}
+        {filter === BURIALS && todayNote}
 
         {selected?.type === 'burial' && (
           <div className="burial-head">
             <h2>{selected.name}</h2>
             {selected.details && <p>{selected.details}</p>}
-            {shown.some((p) => p.shownUntil) && (
-              <p className="burial-day-note">
-                Photos marked <strong>Shared today</strong> passed an automatic check and are shown until midnight.
-                After that, they're hidden until a South-View staff member approves them.
-              </p>
-            )}
+            {todayNote}
             {selected.active && (
               <Link to={shareLink} className="button button-outline">Add a photo of {selected.name}</Link>
             )}
@@ -200,9 +200,9 @@ export default function Gallery() {
 
         <WixNote>
           this grid is a Pro Gallery connected to the CMS Collection, filtered to rows where
-          the approval field is true and grouped by the event or burial field. A burial's page
-          also lets through photos whose "shown until" date, set by the AI check, hasn't passed
-          yet. The search box filters the same Collection.
+          the approval field is true and grouped by the event or burial field. The Burials view
+          and each burial's page also let through photos whose "shown until" date, set by the
+          AI check, hasn't passed yet. The search box filters the same Collection.
         </WixNote>
       </section>
 

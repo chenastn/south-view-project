@@ -23,7 +23,7 @@ export default function Submit() {
   const [error, setError] = useState(null)
   const [progress, setProgress] = useState(null)
   const [sentCount, setSentCount] = useState(0)
-  // Burial photos that passed the AI check and are on that person's page already.
+  // Burial photos that passed the AI check and are in the gallery already.
   const [shownCount, setShownCount] = useState(0)
 
   // The event from the QR code (or the visitor's pick) counts once it's on the loaded list.
@@ -239,8 +239,8 @@ export default function Submit() {
       <WixNote>
         this is a Wix Form that writes each photo into the CMS Collection with the
         approval field set to false, so nothing is public until staff approve it. The one
-        exception is a burial photo that passes the AI check: it shows on that person's page
-        until midnight.
+        exception is a burial photo that passes the AI check: it shows in the Burials view
+        and on that person's page until midnight.
       </WixNote>
     </section>
   )

@@ -129,7 +129,7 @@ function ReviewQueue({ onLocked }) {
     setError(null)
     try {
       await setStatus(id, status)
-      // Like the backend, a decision ends a burial photo's day on its page.
+      // Like the backend, a decision ends a burial photo's day in the gallery.
       setItems((all) => all.map((i) => (i.id === id ? { ...i, status, shownUntil: '' } : i)))
     } catch (err) {
       handleError(err)
@@ -189,8 +189,8 @@ function ReviewQueue({ onLocked }) {
               </div>
               {item.status === 'pending' && isShownToday(item) && (
                 <p className="burial-day-note">
-                  Passed the AI check, so it's showing on {eventName(item.event)}'s page until midnight. Approve it to
-                  keep it in the gallery, or reject it to take it down now.
+                  Passed the AI check, so it's showing in Burials and on {eventName(item.event)}'s page until midnight.
+                  Approve it to keep it in the gallery, or reject it to take it down now.
                 </p>
               )}
               <p className="review-caption">{item.caption || <em>No caption</em>}</p>
@@ -232,7 +232,7 @@ const MANAGER_TEXT = {
   },
   burial: {
     intro:
-      "Each burial gets its own QR code to place at the grave, and its own page in the gallery. A burial photo that passes the AI check shows on that page right away, until midnight. It's only added to the gallery for good once you approve it.",
+      "Each burial gets its own QR code to place at the grave, and its own page in the gallery. A burial photo that passes the AI check shows there and in the gallery's Burials view right away, until midnight. It's only added to the gallery for good once you approve it.",
     placeholder: 'Name of the person buried here',
     add: 'Add burial',
     none: 'No burials yet.',
