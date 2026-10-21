@@ -37,9 +37,11 @@ const toBase64 = (blob) =>
     reader.readAsDataURL(blob)
   })
 
-export async function listApproved() {
-  const { photos } = await fetch(`${API_URL}?action=gallery`).then(parse)
-  return photos.map(toRecord).sort((a, b) => b.submittedAt.localeCompare(a.submittedAt))
+// Approved photos, plus burial photos that passed the AI check today (those have
+// shownUntil). A script from before burial-day photos sends only the approved ones. Newest first.
+export async function listGallery() {
+  const { photos, burialDayPhotos = [] } = await fetch(`${API_URL}?action=gallery`).then(parse)
+  return [...photos, ...burialDayPhotos].map(toRecord).sort((a, b) => b.submittedAt.localeCompare(a.submittedAt))
 }
 
 export async function listAll() {
@@ -47,8 +49,9 @@ export async function listAll() {
   return submissions.map(toRecord).sort((a, b) => b.submittedAt.localeCompare(a.submittedAt))
 }
 
+// shownUntil is set when a burial photo passed the AI check and is in the gallery until then.
 export async function addSubmission(record) {
-  await post({
+  const { shownUntil } = await post({
     action: 'submit',
     event: record.event,
     caption: record.caption,
@@ -58,6 +61,7 @@ export async function addSubmission(record) {
     mimeType: record.image.type || 'image/jpeg',
     image: await toBase64(record.image),
   })
+  return { shownUntil: shownUntil ?? '' }
 }
 
 export async function setStatus(id, status) {

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useEvents } from '../events'
 import { addSubmission } from '../data/store'
+import { isShownToday } from '../data/events'
 import { checkSubmission } from '../moderation'
 import { resizeImage } from '../utils/resizeImage'
 import { WixNote } from '../components'
@@ -22,6 +23,8 @@ export default function Submit() {
   const [error, setError] = useState(null)
   const [progress, setProgress] = useState(null)
   const [sentCount, setSentCount] = useState(0)
+  // Burial photos that passed the AI check and are in the gallery already.
+  const [shownCount, setShownCount] = useState(0)
 
   // The event from the QR code (or the visitor's pick) counts once it's on the loaded list.
   const chosen = [...activeEvents, ...activeBurials].find((e) => e.id === event)
@@ -43,12 +46,13 @@ export default function Submit() {
     setState('sending')
     setError(null)
     let sent = 0
+    let shown = 0
     for (const item of batch) {
       setProgress({ current: sent + 1, total: batch.length })
       try {
         const image = (await resizeImage(item.file).catch(() => null)) ?? item.file
         const aiCheck = await checkSubmission({ caption, fileName: item.file.name })
-        await addSubmission({
+        const saved = await addSubmission({
           id: crypto.randomUUID(),
           event: chosen.id,
           caption: caption.trim(),
@@ -61,9 +65,11 @@ export default function Submit() {
           sample: false,
           aiCheck,
         })
+        if (saved && isShownToday(saved)) shown++
       } catch (err) {
         // Messages from the script (like a deleted event) are worth showing; network errors aren't.
         setSentCount((n) => n + sent)
+        setShownCount((n) => n + shown)
         setError({ sent, total: batch.length, message: err.code ? err.message : null })
         setState('error')
         return
@@ -72,6 +78,7 @@ export default function Submit() {
       setFiles((current) => current.filter((f) => f !== item))
     }
     setSentCount((n) => n + sent)
+    setShownCount((n) => n + shown)
     setState('done')
   }
 
@@ -80,6 +87,7 @@ export default function Submit() {
     setCaption('')
     setConsent(false)
     setSentCount(0)
+    setShownCount(0)
     setState('idle')
   }
 
@@ -88,11 +96,19 @@ export default function Submit() {
     return (
       <section className="section narrow center">
         <h1>Thank you for sharing</h1>
-        <p className="lead">
-          {what} {chosen.type === 'burial' ? 'of' : 'from'} <strong>{chosen.name}</strong>{' '}
-          {sentCount === 1 ? 'was' : 'were'} sent to South-View. {sentCount === 1 ? 'It' : 'They'} will appear in
-          the gallery after a staff member reviews {sentCount === 1 ? 'it' : 'them'}.
-        </p>
+        {shownCount > 0 ? (
+          <p className="lead">
+            {shownCount === sentCount ? what : `${shownCount} of your ${sentCount} photos`}{' '}
+            {shownCount === 1 ? 'is' : 'are'} on <strong>{chosen.name}</strong>'s page now and will stay up until
+            midnight. A South-View staff member reviews every photo before it's added to the gallery for good.
+          </p>
+        ) : (
+          <p className="lead">
+            {what} {chosen.type === 'burial' ? 'of' : 'from'} <strong>{chosen.name}</strong>{' '}
+            {sentCount === 1 ? 'was' : 'were'} sent to South-View. {sentCount === 1 ? 'It' : 'They'} will appear in
+            the gallery after a staff member reviews {sentCount === 1 ? 'it' : 'them'}.
+          </p>
+        )}
         <div className="actions">
           <button className="button" onClick={reset}>Share more photos</button>
           <Link to={`/?event=${chosen.id}`} className="button button-outline">
@@ -110,9 +126,8 @@ export default function Submit() {
       <h1>Share a Photo</h1>
       <p className="lead">
         {chosen?.type === 'burial'
-          ? `Add a photo or memory of ${chosen.name} to South-View's community gallery.`
-          : 'Were you at a South-View event? Add your photos to the community gallery.'}{' '}
-        A South-View staff member reviews every photo before it goes online.
+          ? `Add a photo or memory of ${chosen.name} to South-View's community gallery. Photos that pass an automatic check appear on ${chosen.name}'s page right away, until midnight. A South-View staff member reviews every photo before it's added for good.`
+          : 'Were you at a South-View event? Add your photos to the community gallery. A South-View staff member reviews every photo before it goes online.'}
       </p>
 
       <form className="form" onSubmit={handleSubmit}>
@@ -223,7 +238,9 @@ export default function Submit() {
 
       <WixNote>
         this is a Wix Form that writes each photo into the CMS Collection with the
-        approval field set to false, so nothing is public until staff approve it.
+        approval field set to false, so nothing is public until staff approve it. The one
+        exception is a burial photo that passes the AI check: it shows in the Burials view
+        and on that person's page until midnight.
       </WixNote>
     </section>
   )

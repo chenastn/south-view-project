@@ -15,6 +15,10 @@ const clean = (text, max) => String(text ?? '').replace(/\s+/g, ' ').trim().slic
 export const cleanEventName = (name) => clean(name, MAX_EVENT_NAME_LENGTH)
 export const cleanDetails = (details) => clean(details, MAX_DETAILS_LENGTH)
 
+// A burial photo that passed the AI check shows in the Burials view and on that person's
+// page until midnight of the day it was shared (its shownUntil), before staff review it.
+export const isShownToday = (photo) => Boolean(photo.shownUntil) && new Date(photo.shownUntil) > new Date()
+
 // Burial IDs include the details, so two people with the same name get separate pages.
 // Matches entryId() in apps-script/Code.gs.
 export const entryId = (name, type, details) =>
