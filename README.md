@@ -107,7 +107,8 @@ account while the live site uses South-View's.
   says when it comes down; clear that cell to take it down sooner. Approving it keeps it
   in the gallery for good, and rejecting it takes it down right away. A photo Gemini
   flags, or can't check (no `GEMINI_API_KEY`, or Gemini is busy), stays hidden until
-  staff approve it.
+  staff approve it. For burials, Gemini only flags inappropriate photos: personal photos,
+  such as the person during their life, are fine even when they don't show the cemetery.
 - Don't rename the **ID**, **Status**, **File ID** or **Shown until** columns. Other
   columns can be reordered, and you can add your own. In the **Events** tab, don't change
   an event's **ID**: that's how photos stay linked to it.
