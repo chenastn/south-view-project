@@ -6,7 +6,7 @@ import * as sheet from './sheetStore'
 export const isDemo = !import.meta.env.VITE_APPS_SCRIPT_URL
 
 export const {
-  listApproved,
+  listGallery,
   listAll,
   addSubmission,
   setStatus,

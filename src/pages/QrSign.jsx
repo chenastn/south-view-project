@@ -99,7 +99,11 @@ export default function QrSign() {
         <ol>
           <li>Point your phone camera at the code</li>
           <li>Pick one or more photos and add a caption if you like</li>
-          <li>South-View staff review every photo before it goes online</li>
+          <li>
+            {burial
+              ? 'Photos that pass an automatic check show up right away, and stay once South-View staff approve them'
+              : 'South-View staff review every photo before it goes online'}
+          </li>
         </ol>
       </div>
 

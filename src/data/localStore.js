@@ -1,10 +1,10 @@
 import { createStore, entries, set, get, clear, setMany } from 'idb-keyval'
 import { seedRecords } from './seed'
-import { DEFAULT_EVENTS, cleanDetails, cleanEventName, entryId } from './events'
+import { DEFAULT_EVENTS, cleanDetails, cleanEventName, entryId, isShownToday } from './events'
 
 // Demo backend: everything lives in this browser's IndexedDB, seeded with sample photos.
 // Each record mirrors one row of the Google Sheet:
-// image, event, caption, consent, status, aiCheck, submittedAt.
+// image, event, caption, consent, status, aiCheck, submittedAt, shownUntil.
 const db = createStore('south-view-gallery', 'submissions')
 const SEEDED_KEY = '__seeded'
 const EVENTS_KEY = '__events'
@@ -25,18 +25,29 @@ export async function listAll() {
     .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt))
 }
 
-export async function listApproved() {
-  return (await listAll()).filter((r) => r.status === 'approved')
+// Approved photos, plus burial photos still having their day on that person's page. Newest first.
+export async function listGallery() {
+  return (await listAll()).filter((r) => r.status === 'approved' || (r.status === 'pending' && isShownToday(r)))
 }
 
+// A burial photo that passes the AI check shows on that person's page until midnight, as in
+// submit() in apps-script/Code.gs. The demo uses this browser's midnight, not Atlanta's.
 export async function addSubmission(record) {
   await ensureSeeded()
-  await set(record.id, record, db)
+  const entry = (await listEvents()).find((e) => e.id === record.event)
+  const now = new Date()
+  const shownUntil =
+    entry?.type === 'burial' && record.aiCheck && !record.aiCheck.flagged
+      ? new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString()
+      : ''
+  await set(record.id, { ...record, shownUntil }, db)
+  return { shownUntil }
 }
 
+// Staff review ends a burial photo's day on its page, as in apps-script/Code.gs.
 export async function setStatus(id, status) {
   const record = await get(id, db)
-  if (record) await set(id, { ...record, status }, db)
+  if (record) await set(id, { ...record, status, shownUntil: '' }, db)
 }
 
 export async function listEvents() {

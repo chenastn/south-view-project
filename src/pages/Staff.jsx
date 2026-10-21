@@ -13,7 +13,7 @@ import {
   setStatus,
   unlockStaff,
 } from '../data/store'
-import { MAX_DETAILS_LENGTH, MAX_EVENT_NAME_LENGTH, cleanEventName } from '../data/events'
+import { MAX_DETAILS_LENGTH, MAX_EVENT_NAME_LENGTH, cleanEventName, isShownToday } from '../data/events'
 import { useEvents } from '../events'
 import { AiCheckPanel, Photo, WixNote, formatDate } from '../components'
 
@@ -99,8 +99,9 @@ function ReviewQueue({ onLocked }) {
         if (cancelled) return
         setItems(list)
         if (isDemo) return
-        // Background Gemini checks for every pending photo (demo volume is small).
-        for (const item of list.filter((i) => i.status === 'pending' && i.fileId)) {
+        // Background Gemini checks for pending photos Gemini hasn't checked yet. Burial
+        // photos usually got theirs when they were shared.
+        for (const item of list.filter((i) => i.status === 'pending' && i.fileId && i.aiCheck?.engine !== 'gemini')) {
           if (cancelled) return
           try {
             const aiCheck = await checkAI(item.id)
@@ -128,7 +129,8 @@ function ReviewQueue({ onLocked }) {
     setError(null)
     try {
       await setStatus(id, status)
-      setItems((all) => all.map((i) => (i.id === id ? { ...i, status } : i)))
+      // Like the backend, a decision ends a burial photo's day on its page.
+      setItems((all) => all.map((i) => (i.id === id ? { ...i, status, shownUntil: '' } : i)))
     } catch (err) {
       handleError(err)
     }
@@ -185,6 +187,12 @@ function ReviewQueue({ onLocked }) {
                 <strong>{entry(item.event)?.type === 'burial' ? `Burial · ${eventName(item.event)}` : eventName(item.event)}</strong>
                 <span>{item.sample ? 'Sample from southviewpreservation.com' : `Submitted ${formatDate(item.submittedAt)}`}</span>
               </div>
+              {item.status === 'pending' && isShownToday(item) && (
+                <p className="burial-day-note">
+                  Passed the AI check, so it's showing on {eventName(item.event)}'s page until midnight. Approve it to
+                  keep it in the gallery, or reject it to take it down now.
+                </p>
+              )}
               <p className="review-caption">{item.caption || <em>No caption</em>}</p>
               <p className="review-consent">{item.consent ? '✓ Contributor gave consent to publish' : 'No consent given'}</p>
               <AiCheckPanel check={item.aiCheck} />
@@ -223,7 +231,8 @@ const MANAGER_TEXT = {
     hint: "Deleting an event takes it off the photo form and QR signs. Photos already shared from it keep the event's name, and adding an event with the same name brings it back.",
   },
   burial: {
-    intro: 'Each burial gets its own QR code to place at the grave, and its own page in the gallery.',
+    intro:
+      "Each burial gets its own QR code to place at the grave, and its own page in the gallery. A burial photo that passes the AI check shows on that page right away, until midnight. It's only added to the gallery for good once you approve it.",
     placeholder: 'Name of the person buried here',
     add: 'Add burial',
     none: 'No burials yet.',

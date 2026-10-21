@@ -135,6 +135,15 @@ img { max-width: 100%; display: block; }
 .burial-head { margin: -8px 0 28px; }
 .burial-head h2 { margin: 0; }
 .burial-head p { margin: 0 0 12px; color: #6b6b6b; }
+.burial-day-note, .burial-head .burial-day-note {
+  max-width: 640px;
+  margin: 0 0 14px;
+  padding: 8px 12px;
+  border-left: 4px solid var(--gold);
+  background: var(--bg-soft);
+  color: var(--text);
+  font-size: 0.92rem;
+}
 .chips { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 28px; }
 .chip {
   border: 1px solid var(--line);
@@ -148,6 +157,10 @@ img { max-width: 100%; display: block; }
 .chip span { color: #8a8a8a; margin-left: 4px; }
 .chip.active { background: var(--nav); border-color: var(--nav); color: #fff; }
 .chip.active span { color: #cfd5cf; }
+.person-filter { display: flex; align-items: center; gap: 10px; margin: -10px 0 28px; font-weight: 500; }
+.person-filter select { min-width: 0; max-width: 100%; }
+.day-heading { font-family: var(--serif); font-size: 1.6rem; font-weight: 600; margin: 0 0 14px; }
+.grid + .day-heading { margin-top: 40px; }
 
 .grid {
   display: grid;
@@ -158,7 +171,7 @@ img { max-width: 100%; display: block; }
 .card-photo { position: relative; aspect-ratio: 4 / 3; overflow: hidden; }
 .card-photo img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s; }
 .card:hover .card-photo img { transform: scale(1.03); }
-.sample-tag {
+.photo-tag {
   position: absolute;
   top: 10px;
   left: 10px;
@@ -171,6 +184,7 @@ img { max-width: 100%; display: block; }
   padding: 3px 8px;
   border-radius: 4px;
 }
+.today-tag { background: var(--rose); color: #fff; }
 .card figcaption { display: flex; flex-direction: column; gap: 2px; padding: 14px 16px 18px; }
 .card-event {
   align-self: flex-start;
@@ -306,6 +320,7 @@ select, textarea, input[type='file'], .pin-form input {
 .review-meta strong { color: var(--rose); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.8rem; }
 .review-caption { font-family: var(--serif); font-size: 1.35rem; margin: 6px 0; }
 .review-consent { font-size: 0.9rem; color: #3b6b3b; margin: 0 0 12px; }
+.review-body .burial-day-note { margin: 8px 0 4px; }
 
 .ai-check { border-radius: 6px; padding: 12px 14px; font-size: 0.92rem; }
 .ai-check.is-clear { background: #eef5ee; }
