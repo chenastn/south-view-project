@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { listGallery } from '../data/store'
 import { isShownToday } from '../data/events'
@@ -7,6 +7,7 @@ import { Photo, WixNote, formatDate } from '../components'
 
 const photoDate = (p) => (p.sample ? 'Photo from southviewpreservation.com' : formatDate(p.submittedAt))
 const BURIALS = 'burials'
+const PAGE_SIZE = 50
 
 // Splits photos, already newest first, into one group per day they were shared.
 function byDay(photos) {
@@ -26,7 +27,9 @@ export default function Gallery() {
   const [photos, setPhotos] = useState([])
   const [loading, setLoading] = useState('loading')
   const [query, setQuery] = useState('')
-  const [open, setOpen] = useState(null)
+  const [openId, setOpenId] = useState(null)
+  const [page, setPage] = useState(0)
+  const pageItemsRef = useRef([])
 
   // The filter lives in the URL (#/?event=…), so a burial's photos have a link to share.
   const filter = params.get('event') ?? 'all'
@@ -41,12 +44,28 @@ export default function Gallery() {
       .catch(() => setLoading('error'))
   }, [])
 
+  // A new filter or search term starts back on page one.
   useEffect(() => {
-    if (!open) return
-    const onKey = (e) => e.key === 'Escape' && setOpen(null)
+    setPage(0)
+  }, [filter, query])
+
+  useEffect(() => {
+    if (openId == null) return
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        setOpenId(null)
+        return
+      }
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+      const list = pageItemsRef.current
+      const idx = list.findIndex((p) => p.id === openId)
+      if (idx === -1) return
+      const next = e.key === 'ArrowLeft' ? idx - 1 : idx + 1
+      if (next >= 0 && next < list.length) setOpenId(list[next].id)
+    }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open])
+  }, [openId])
 
   const isBurial = (p) => entry(p.event)?.type === 'burial'
   // Burial photos that passed the AI check today (they have shownUntil) show in the Burials
@@ -74,8 +93,15 @@ export default function Gallery() {
   }
   const inView = filter === 'all' ? approved : filter === BURIALS ? burialPhotos : withToday.filter((p) => p.event === filter)
   const shown = inView.filter(matches)
+  // Pages of PAGE_SIZE keep a big gallery quick to load; the lightbox only steps through
+  // the page that's on screen.
+  const pageCount = Math.max(1, Math.ceil(shown.length / PAGE_SIZE))
+  const pageItems = shown.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+  pageItemsRef.current = pageItems
+  const open = openId == null ? null : pageItems.find((p) => p.id === openId) ?? null
+  const openIndex = open ? pageItems.findIndex((p) => p.id === open.id) : -1
   // Burial photos are grouped by the day they were shared, newest first.
-  const groups = inBurials ? byDay(shown) : [{ day: null, photos: shown }]
+  const groups = inBurials ? byDay(pageItems) : [{ day: null, photos: pageItems }]
   const today = formatDate(new Date())
   const todayNote = shown.some((p) => p.shownUntil) && (
     <p className="burial-day-note">
@@ -172,7 +198,7 @@ export default function Gallery() {
               {g.day && <h3 className="day-heading">{g.day === today ? 'Today' : g.day}</h3>}
               <div className="grid">
                 {g.photos.map((p) => (
-                  <figure key={p.id} className="card" onClick={() => setOpen(p)}>
+                  <figure key={p.id} className="card" onClick={() => setOpenId(p.id)}>
                     <div className="card-photo">
                       <Photo record={p} loading="lazy" />
                       {p.sample && <span className="photo-tag">Sample</span>}
@@ -198,6 +224,18 @@ export default function Gallery() {
           ))
         )}
 
+        {pageCount > 1 && (
+          <div className="pager">
+            <button className="button button-outline" disabled={page === 0} onClick={() => setPage((n) => n - 1)}>
+              Previous
+            </button>
+            <span>Page {page + 1} of {pageCount}</span>
+            <button className="button button-outline" disabled={page >= pageCount - 1} onClick={() => setPage((n) => n + 1)}>
+              Next
+            </button>
+          </div>
+        )}
+
         <WixNote>
           this grid is a Pro Gallery connected to the CMS Collection, filtered to rows where
           the approval field is true and grouped by the event or burial field. The Burials view
@@ -207,7 +245,19 @@ export default function Gallery() {
       </section>
 
       {open && (
-        <div className="lightbox" onClick={() => setOpen(null)} role="dialog" aria-modal="true">
+        <div className="lightbox" onClick={() => setOpenId(null)} role="dialog" aria-modal="true">
+          {openIndex > 0 && (
+            <button
+              className="lightbox-nav lightbox-prev"
+              onClick={(e) => {
+                e.stopPropagation()
+                setOpenId(pageItems[openIndex - 1].id)
+              }}
+              aria-label="Previous photo"
+            >
+              ‹
+            </button>
+          )}
           <figure onClick={(e) => e.stopPropagation()}>
             <Photo record={open} />
             <figcaption>
@@ -216,8 +266,20 @@ export default function Gallery() {
               {open.caption && <span>{open.caption}</span>}
               <span className="card-date">{open.shownUntil ? 'Shared today · not yet reviewed by staff' : photoDate(open)}</span>
             </figcaption>
-            <button className="lightbox-close" onClick={() => setOpen(null)} aria-label="Close">×</button>
+            <button className="lightbox-close" onClick={() => setOpenId(null)} aria-label="Close">×</button>
           </figure>
+          {openIndex >= 0 && openIndex < pageItems.length - 1 && (
+            <button
+              className="lightbox-nav lightbox-next"
+              onClick={(e) => {
+                e.stopPropagation()
+                setOpenId(pageItems[openIndex + 1].id)
+              }}
+              aria-label="Next photo"
+            >
+              ›
+            </button>
+          )}
         </div>
       )}
     </>

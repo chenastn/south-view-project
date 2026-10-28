@@ -7,7 +7,7 @@ import { checkSubmission } from '../moderation'
 import { resizeImage } from '../utils/resizeImage'
 import { WixNote } from '../components'
 
-const MAX_PHOTOS = 10
+const MAX_PHOTOS = 5
 
 export default function Submit() {
   const [params] = useSearchParams()
@@ -50,8 +50,10 @@ export default function Submit() {
     for (const item of batch) {
       setProgress({ current: sent + 1, total: batch.length })
       try {
-        const image = (await resizeImage(item.file).catch(() => null)) ?? item.file
-        const aiCheck = await checkSubmission({ caption, fileName: item.file.name })
+        const [image, aiCheck] = await Promise.all([
+          resizeImage(item.file).catch(() => null).then((img) => img ?? item.file),
+          checkSubmission({ caption, fileName: item.file.name }),
+        ])
         const saved = await addSubmission({
           id: crypto.randomUUID(),
           event: chosen.id,
