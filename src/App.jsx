@@ -15,9 +15,6 @@ export default function App() {
 
   return (
     <EventsProvider>
-      <div className="prototype-banner">
-        Student prototype for the Historic South-View Preservation Foundation · LMC 3403 · Not the official site
-      </div>
       <header className="site-header">
         <Link to="/" className="wordmark">
           <span className="wordmark-top">Historic</span>

@@ -5,7 +5,6 @@ import { addSubmission } from '../data/store'
 import { isShownToday } from '../data/events'
 import { checkSubmission } from '../moderation'
 import { resizeImage } from '../utils/resizeImage'
-import { WixNote } from '../components'
 
 const MAX_PHOTOS = 5
 
@@ -237,13 +236,6 @@ export default function Submit() {
                 : 'Send for review'}
         </button>
       </form>
-
-      <WixNote>
-        this is a Wix Form that writes each photo into the CMS Collection with the
-        approval field set to false, so nothing is public until staff approve it. The one
-        exception is a burial photo that passes the AI check: it shows in the Burials view
-        and on that person's page until midnight.
-      </WixNote>
     </section>
   )
 }

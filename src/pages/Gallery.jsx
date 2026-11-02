@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { listGallery } from '../data/store'
 import { isShownToday } from '../data/events'
 import { useEvents } from '../events'
-import { Photo, WixNote, formatDate } from '../components'
+import { Photo, formatDate } from '../components'
 
 const photoDate = (p) => (p.sample ? 'Photo from southviewpreservation.com' : formatDate(p.submittedAt))
 const BURIALS = 'burials'
@@ -235,13 +235,6 @@ export default function Gallery() {
             </button>
           </div>
         )}
-
-        <WixNote>
-          this grid is a Pro Gallery connected to the CMS Collection, filtered to rows where
-          the approval field is true and grouped by the event or burial field. The Burials view
-          and each burial's page also let through photos whose "shown until" date, set by the
-          AI check, hasn't passed yet. The search box filters the same Collection.
-        </WixNote>
       </section>
 
       {open && (

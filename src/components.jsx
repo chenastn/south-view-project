@@ -30,13 +30,6 @@ export function Photo({ record, ...props }) {
   )
 }
 
-export function WixNote({ children }) {
-  return (
-    <aside className="wix-note">
-      <strong>How this works in Wix:</strong> {children}
-    </aside>
-  )
-}
 
 const ENGINE_LABELS = { simulated: 'Simulated AI check', gemini: 'Gemini AI check' }
 

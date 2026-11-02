@@ -15,7 +15,7 @@ import {
 } from '../data/store'
 import { MAX_DETAILS_LENGTH, MAX_EVENT_NAME_LENGTH, cleanEventName, isShownToday } from '../data/events'
 import { useEvents } from '../events'
-import { AiCheckPanel, Photo, WixNote, formatDate } from '../components'
+import { AiCheckPanel, Photo, formatDate } from '../components'
 
 const TABS = [
   { status: 'pending', label: 'Pending review' },
@@ -213,11 +213,6 @@ function ReviewQueue({ onLocked }) {
           </article>
         ))}
       </div>
-
-      <WixNote>
-        a Wix Automation runs when a new item lands in the Collection, emails staff, and
-        approving a photo just switches its approval field to true.
-      </WixNote>
     </section>
   )
 }
