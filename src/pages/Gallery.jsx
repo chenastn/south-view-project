@@ -200,7 +200,7 @@ export default function Gallery() {
                 {g.photos.map((p) => (
                   <figure key={p.id} className="card" onClick={() => setOpenId(p.id)}>
                     <div className="card-photo">
-                      <Photo record={p} loading="lazy" />
+                      <Photo record={p} loading="lazy" style={p.focus ? { objectPosition: p.focus } : undefined} />
                       {p.sample && <span className="photo-tag">Sample</span>}
                       {p.shownUntil && <span className="photo-tag today-tag">Shared today</span>}
                     </div>
