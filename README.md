@@ -112,9 +112,9 @@ account while the live site uses South-View's.
 - Gallery cards crop each photo to fit. The **Focus** column says which point to keep in
   view, as `left% top%` (`50% 50%` is the center, `50% 20%` is the top middle). Gemini
   fills it when it checks a photo, aiming at the main person's face. To fix a crop, type
-  your own value. For photos shared before this column existed, run `addFocusPoints` from
-  the Apps Script editor (run it again if it stops partway). A blank cell crops to the
-  center.
+  your own value. Running `setup` also fills it for photos shared before this column
+  existed, which can take a few minutes the first time. If it stops partway, run `setup`
+  (or `addFocusPoints`) again. A blank cell crops to the center.
 - Don't rename the **ID**, **Status**, **File ID** or **Shown until** columns. Other
   columns can be reordered, and you can add your own. In the **Events** tab, don't change
   an event's **ID**: that's how photos stay linked to it.

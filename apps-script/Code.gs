@@ -67,6 +67,8 @@ function setup() {
   if (!props.getProperty('STAFF_PASSWORD')) {
     console.log('Next: add a STAFF_PASSWORD script property (Project Settings → Script properties).')
   }
+  // Photos shared before the Focus column get one now. Once they all have one, this is quick.
+  if (props.getProperty('GEMINI_API_KEY')) addFocusPoints()
 }
 
 // Use the SHEET_ID script property if set, then the Sheet this script is attached to.
@@ -623,9 +625,9 @@ function focusPoint(box) {
   return Math.round((xmin + xmax) / 20) + '% ' + Math.round((ymin + ymax) / 20) + '%'
 }
 
-// Run from the Apps Script editor to fill the Focus column for photos shared before it
-// existed. It skips rows that already have one, so if it stops at the 6-minute limit,
-// run it again to finish.
+// Fills the Focus column for photos shared before it existed. setup runs it, or run it
+// from the Apps Script editor. It skips rows that already have one, so if it stops at the
+// 6-minute limit, run it again to finish.
 function addFocusPoints() {
   const started = Date.now()
   const todo = readRows().filter((r) => r.fileId && !r.focus)
