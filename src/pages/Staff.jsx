@@ -107,7 +107,7 @@ function ReviewQueue({ onLocked }) {
             const aiCheck = await checkAI(item.id)
             if (cancelled) return
             if (!aiCheck) continue
-            setItems((all) => all.map((i) => (i.id === item.id ? { ...i, aiCheck } : i)))
+            setItems((all) => all.map((i) => (i.id === item.id ? { ...i, aiCheck, focus: aiCheck.focus || i.focus } : i)))
           } catch (err) {
             if (err.code === 'bad_password') {
               handleError(err)
@@ -181,7 +181,7 @@ function ReviewQueue({ onLocked }) {
       <div className="review-list">
         {shown.map((item) => (
           <article key={item.id} className="review-card">
-            <Photo record={item} className="review-photo" />
+            <Photo record={item} className="review-photo" style={item.focus ? { objectPosition: item.focus } : undefined} />
             <div className="review-body">
               <div className="review-meta">
                 <strong>{entry(item.event)?.type === 'burial' ? `Burial · ${eventName(item.event)}` : eventName(item.event)}</strong>

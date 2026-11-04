@@ -109,6 +109,12 @@ account while the live site uses South-View's.
   flags, or can't check (no `GEMINI_API_KEY`, or Gemini is busy), stays hidden until
   staff approve it. For burials, Gemini only flags inappropriate photos: personal photos,
   such as the person during their life, are fine even when they don't show the cemetery.
+- Gallery cards crop each photo to fit. The **Focus** column says which point to keep in
+  view, as `left% top%` (`50% 50%` is the center, `50% 20%` is the top middle). Gemini
+  fills it when it checks a photo, aiming at the main person's face. To fix a crop, type
+  your own value. For photos shared before this column existed, run `addFocusPoints` from
+  the Apps Script editor (run it again if it stops partway). A blank cell crops to the
+  center.
 - Don't rename the **ID**, **Status**, **File ID** or **Shown until** columns. Other
   columns can be reordered, and you can add your own. In the **Events** tab, don't change
   an event's **ID**: that's how photos stay linked to it.
@@ -120,7 +126,7 @@ account while the live site uses South-View's.
   folder belongs to someone else, the photos still count against the deploying
   account's storage, unless the folder is in a shared drive.
 - If you change the script, paste in the new `Code.gs`, run `setup` again (it adds any
-  new columns to the end of the Sheet, such as **Shown until**, the **Type** and
+  new columns to the end of the Sheet, such as **Shown until** and **Focus**, the **Type** and
   **Details** columns to the **Events** tab, and the **Events** tab if it's missing; until
   it runs, burial photos wait for staff like the rest), then use
   **Deploy → Manage deployments**, click the pencil, choose **Version: New version** and
