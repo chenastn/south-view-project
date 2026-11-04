@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import QRCode from 'qrcode'
 import { useEvents } from '../events'
-import { WixNote } from '../components'
 
 const submitUrl = (slug) =>
   `${window.location.origin}${import.meta.env.BASE_URL}#/submit?event=${slug}`
@@ -105,10 +104,6 @@ export default function QrSign() {
               : 'South-View staff review every photo before it goes online'}
           </li>
         </ol>
-      </div>
-
-      <div className="no-print">
-        <WixNote>the code points to the same Wix Form, with the event or burial already filled in.</WixNote>
       </div>
     </section>
   )
