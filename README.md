@@ -27,7 +27,7 @@ npm install
 npm run dev
 ```
 
-Then open http://localhost:5173/south-view-project/. `npm run build` outputs the static
+Then open http://localhost:5173/south-view-events-gallery/. `npm run build` outputs the static
 site to `dist/`. Pushing to `main` deploys it to GitHub Pages through
 `.github/workflows/deploy.yml`.
 
