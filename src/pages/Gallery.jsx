@@ -7,6 +7,7 @@ import { Photo, formatDate } from '../components'
 
 const photoDate = (p) => (p.sample ? 'Photo from southviewpreservation.com' : formatDate(p.submittedAt))
 const BURIALS = 'burials'
+const yearOf = (p) => String(new Date(p.submittedAt).getFullYear())
 const PAGE_SIZE = 50
 
 // Splits photos, already newest first, into one group per day they were shared.
@@ -27,6 +28,7 @@ export default function Gallery() {
   const [photos, setPhotos] = useState([])
   const [loading, setLoading] = useState('loading')
   const [query, setQuery] = useState('')
+  const [year, setYear] = useState('')
   const [openId, setOpenId] = useState(null)
   const [page, setPage] = useState(0)
   const pageItemsRef = useRef([])
@@ -44,10 +46,10 @@ export default function Gallery() {
       .catch(() => setLoading('error'))
   }, [])
 
-  // A new filter or search term starts back on page one.
+  // A new filter, year or search term starts back on page one.
   useEffect(() => {
     setPage(0)
-  }, [filter, query])
+  }, [filter, query, year])
 
   useEffect(() => {
     if (openId == null) return
@@ -70,8 +72,11 @@ export default function Gallery() {
   const isBurial = (p) => entry(p.event)?.type === 'burial'
   // Burial photos that passed the AI check today (they have shownUntil) show in the Burials
   // view and on that person's page until midnight. All photos and events are approved only.
-  const approved = photos.filter((p) => !p.shownUntil)
-  const withToday = photos.filter((p) => !p.shownUntil || isShownToday(p))
+  // The year filter applies before everything else, so the counts on the buttons match it.
+  const years = [...new Set(photos.map(yearOf))].sort().reverse()
+  const dated = year ? photos.filter((p) => yearOf(p) === year) : photos
+  const approved = dated.filter((p) => !p.shownUntil)
+  const withToday = dated.filter((p) => !p.shownUntil || isShownToday(p))
   const countFor = (id) => withToday.filter((p) => p.event === id).length
   const burialPhotos = withToday.filter(isBurial)
   // Current events, plus deleted ones that still have photos in the gallery.
@@ -84,11 +89,12 @@ export default function Gallery() {
     .filter((e) => e.type === 'burial' && (e.id === filter || countFor(e.id) > 0))
     .sort((a, b) => a.name.localeCompare(b.name))
 
-  // Every word has to appear somewhere in the caption, name or burial details.
+  // Every word has to appear somewhere in the caption, name, burial details or the date it
+  // was shared, so "october" or "2026" finds photos by date.
   const words = query.toLowerCase().split(/\s+/).filter(Boolean)
   const matches = (p) => {
     const e = entry(p.event)
-    const text = `${p.caption} ${e?.name ?? ''} ${e?.details ?? ''}`.toLowerCase()
+    const text = `${p.caption} ${e?.name ?? ''} ${e?.details ?? ''} ${formatDate(p.submittedAt)}`.toLowerCase()
     return words.every((w) => text.includes(w))
   }
   const inView = filter === 'all' ? approved : filter === BURIALS ? burialPhotos : withToday.filter((p) => p.event === filter)
@@ -112,8 +118,10 @@ export default function Gallery() {
 
   const shareLink = selected?.active ? `/submit?event=${selected.id}` : '/submit'
   const emptyText = words.length
-    ? `No photos match "${query.trim()}".`
-    : filter === 'all'
+    ? `No photos match "${query.trim()}"${year ? ` in ${year}` : ''}.`
+    : year
+      ? `No photos here from ${year}.`
+      : filter === 'all'
       ? 'No approved photos yet.'
       : filter === BURIALS
         ? 'No burial photos yet.'
@@ -132,14 +140,27 @@ export default function Gallery() {
       </section>
 
       <section className="section">
-        <input
-          type="search"
-          className="gallery-search"
-          placeholder="Search by name, event or caption"
-          aria-label="Search photos"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
+        <div className="gallery-tools">
+          <input
+            type="search"
+            className="gallery-search"
+            placeholder="Search by name, event, caption or date"
+            aria-label="Search photos"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          {years.length > 0 && (
+            <label className="year-filter">
+              <span>Year</span>
+              <select value={year} onChange={(e) => setYear(e.target.value)}>
+                <option value="">Any year</option>
+                {years.map((y) => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
 
         <div className="chips" role="tablist" aria-label="Filter photos">
           <button className={filter === 'all' ? 'chip active' : 'chip'} onClick={() => setFilter('all')}>
